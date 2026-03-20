@@ -1,0 +1,73 @@
+time,symbol,state,regime,confidence,center,lower,upper,spacing,levels,qty_per_level,reason
+2026-03-20T10:59:00Z,ETHUSDC,GRID_READY,LONG_GRID,MEDIUM,Upward slope with pullback-friendly structure.,3510.9,3500.4,3521.5,1.8,6,0.012
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,ATR below threshold.,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding for BTCUSDC,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding for BTCUSDC,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,GRID_READY,NEUTRAL_GRID,LOW,"Range structure detected, ATR%=0.0007, drift=-59.20.",84210.9,83958.3,84463.5,42.1,6,0.00053,83916.2
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding for BTCUSDC,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding for BTCUSDC,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T10:59:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding for BTCUSDC,,,,,,,
+2026-03-20T10:59:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,
+2026-03-20T16:09:00Z,BTCUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Quantity became zero after rounding for BTCUSDC,,,,,,,
+2026-03-20T16:09:00Z,ETHUSDC,NO_TRADE,NEUTRAL_GRID,LOW,Structure too imbalanced for grid deployment.,,,,,,,

@@ -1,0 +1,111 @@
+# TASKS.md
+
+- ID: TASK-BBY-001
+- Title: Build paper execution simulator core
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: critical
+- What done: Добавлены paper state, candle-touch fills v0, inventory, realized/unrealized PnL.
+- What left: Ничего по этому шагу.
+- Blockers: none
+- Last update: 2026-03-20 17:39 Europe/Moscow
+
+- ID: TASK-BBY-002
+- Title: Harden risk lock from paper results
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: active
+- Priority: critical
+- What done: Добавлены invalidation flatten, realized-loss to loss_streak, снят ложный DAILY_LOCK от open position, внедрены explicit state transitions в `agent.py`, подтвержден contract-test invalidation->cleanup->same-symbol re-arm в `test_simulator.py` через локальный прогон `python3 test_simulator.py`.
+- What left: Формально закрыть финальный runner-state contract review и сразу перейти к `TASK-BBY-008` loop runner.
+- Blockers: `pytest` недоступен в runtime (`python3 -m pytest` падает с `No module named pytest`), поэтому пока используется прямой локальный прогон `python3 test_simulator.py`.
+- Last update: 2026-03-20 18:18 Europe/Moscow
+
+- ID: TASK-BBY-003
+- Title: Add multi-symbol scan loop
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: high
+- What done: Добавлены `evaluate_many`, `runner.py`, `multi_snapshot.json`, per-symbol decisions в state, локальный прогон по BTCUSDC/ETHUSDC выполнен.
+- What left: Ничего по базовому scanner loop.
+- Blockers: none
+- Last update: 2026-03-20 17:39 Europe/Moscow
+
+- ID: TASK-BBY-004
+- Title: Add heartbeat and status formatting
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: high
+- What done: Добавлены runner-level summary в `runner.py` и heartbeat formatter `heartbeat_check.py`; локальный прогон подтвержден.
+- What left: Ничего по базовому formatting.
+- Blockers: none
+- Last update: 2026-03-20 17:39 Europe/Moscow
+
+- ID: TASK-BBY-005
+- Title: Fix symbol-specific sizing constraints
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: high
+- What done: Введены `symbol_overrides` в `config.json`, risk engine стал symbol-aware; BTCUSDC проходит sizing с `qty=0.00053`.
+- What left: Ничего по этому шагу.
+- Blockers: none
+- Last update: 2026-03-20 17:39 Europe/Moscow
+
+- ID: TASK-BBY-006
+- Title: Add runner-level decision summary
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: medium
+- What done: Добавлены compact scan summary и readiness output в `runner.py`.
+- What left: Ничего по этому шагу.
+- Blockers: none
+- Last update: 2026-03-20 17:39 Europe/Moscow
+
+- ID: TASK-BBY-007
+- Title: Assemble final paper-ready runner cycle
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: high
+- What done: Добавлен `paper_cycle.py`; локальный прогон показывает decisions + summary + `readiness=PAPER_READY`.
+- What left: Ничего по базовому final cycle.
+- Blockers: none
+- Last update: 2026-03-20 17:39 Europe/Moscow
+
+- ID: TASK-BBY-008
+- Title: Add repeating loop runner
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: high
+- What done: Добавлен `paper_loop.py` с параметрами `--interval-sec` и `--iterations`; локальный прогон `python3 paper_loop.py --input multi_snapshot.json --iterations 2 --interval-sec 0.1` подтвержден, цикл повторно выдает decisions + summary + `readiness=PAPER_READY`.
+- What left: Для полного runtime automation отдельно привязать loop к реальному market-data polling/cron, но базовый repeating loop runner собран.
+- Blockers: none
+- Last update: 2026-03-20 18:27 Europe/Moscow
+
+- ID: TASK-BBY-009
+- Title: Validate symbol constraints via live Binance exchangeInfo filters
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: done
+- Priority: high
+- What done: Live `exchangeInfo` auto-load/live refresh path уже встроен в рабочий код через `binance_exchange.py` + `agent.py`; локально подтверждено, что `BobbyAxelrodAgent` стартует с `exchange_info.enabled=true`, подтягивает symbol filters и использует их как `symbol_overrides` для BTCUSDC/ETHUSDC.
+- What left: Ничего по этой задаче; далее фокус на реальном market-data polling.
+- Blockers: none
+- Last update: 2026-03-20 18:46 Europe/Moscow
+
+- ID: TASK-BBY-010
+- Title: Bind repeating loop to real market-data polling/runtime automation
+- Class: TASK
+- Project: PROJ-BBY-ALGO-001
+- Status: active
+- Priority: high
+- What done: Базовый repeating loop runner собран и локально подтвержден.
+- What left: Подключить реальный market-data polling/runtime automation вместо статического snapshot input.
+- Blockers: Реальный polling adapter еще не собран.
+- Last update: 2026-03-20 18:27 Europe/Moscow
