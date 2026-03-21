@@ -1,0 +1,29 @@
+{
+  "symbol": "ETHUSDC",
+  "bid": 3510.8,
+  "ask": 3511.0,
+  "last_price": 3510.9,
+  "mark_price": 3510.95,
+  "candles": [
+    {"timestamp":"2026-03-20T10:40:00Z","open":3498.2,"high":3500.4,"low":3497.9,"close":3499.8,"volume":120.1},
+    {"timestamp":"2026-03-20T10:41:00Z","open":3499.8,"high":3502.1,"low":3499.2,"close":3501.7,"volume":131.5},
+    {"timestamp":"2026-03-20T10:42:00Z","open":3501.7,"high":3503.8,"low":3500.9,"close":3503.1,"volume":118.0},
+    {"timestamp":"2026-03-20T10:43:00Z","open":3503.1,"high":3504.0,"low":3501.4,"close":3502.2,"volume":90.3},
+    {"timestamp":"2026-03-20T10:44:00Z","open":3502.2,"high":3505.9,"low":3501.9,"close":3505.4,"volume":154.0},
+    {"timestamp":"2026-03-20T10:45:00Z","open":3505.4,"high":3506.2,"low":3503.8,"close":3504.1,"volume":88.7},
+    {"timestamp":"2026-03-20T10:46:00Z","open":3504.1,"high":3507.1,"low":3503.5,"close":3506.8,"volume":143.2},
+    {"timestamp":"2026-03-20T10:47:00Z","open":3506.8,"high":3508.0,"low":3505.0,"close":3506.2,"volume":97.4},
+    {"timestamp":"2026-03-20T10:48:00Z","open":3506.2,"high":3509.4,"low":3505.9,"close":3508.8,"volume":162.5},
+    {"timestamp":"2026-03-20T10:49:00Z","open":3508.8,"high":3510.2,"low":3507.1,"close":3509.6,"volume":121.0},
+    {"timestamp":"2026-03-20T10:50:00Z","open":3509.6,"high":3511.3,"low":3508.7,"close":3510.7,"volume":116.3},
+    {"timestamp":"2026-03-20T10:51:00Z","open":3510.7,"high":3512.0,"low":3509.5,"close":3511.8,"volume":98.2},
+    {"timestamp":"2026-03-20T10:52:00Z","open":3511.8,"high":3513.1,"low":3510.6,"close":3512.2,"volume":102.9},
+    {"timestamp":"2026-03-20T10:53:00Z","open":3512.2,"high":3513.4,"low":3511.1,"close":3512.7,"volume":91.5},
+    {"timestamp":"2026-03-20T10:54:00Z","open":3512.7,"high":3514.2,"low":3511.8,"close":3513.9,"volume":113.6},
+    {"timestamp":"2026-03-20T10:55:00Z","open":3513.9,"high":3515.6,"low":3512.4,"close":3514.8,"volume":128.4},
+    {"timestamp":"2026-03-20T10:56:00Z","open":3514.8,"high":3515.1,"low":3512.9,"close":3513.5,"volume":85.6},
+    {"timestamp":"2026-03-20T10:57:00Z","open":3513.5,"high":3514.0,"low":3511.9,"close":3512.4,"volume":87.1},
+    {"timestamp":"2026-03-20T10:58:00Z","open":3512.4,"high":3512.8,"low":3510.7,"close":3511.3,"volume":93.0},
+    {"timestamp":"2026-03-20T10:59:00Z","open":3511.3,"high":3511.4,"low":3509.9,"close":3510.9,"volume":82.4}
+  ]
+}

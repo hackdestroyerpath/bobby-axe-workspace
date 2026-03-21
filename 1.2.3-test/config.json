@@ -1,0 +1,61 @@
+{
+  "symbols": ["BTCUSDC", "ETHUSDC"],
+  "timeframe": "1m",
+  "paper_trading": true,
+  "maker_only": true,
+  "regime_window": 20,
+  "atr_period": 14,
+  "trend_slope_window": 8,
+  "grid_levels": 5,
+  "grid_levels_min": 1,
+  "grid_levels_max": 5,
+  "grid_levels_hard_cap": 7,
+  "grid_spacing_atr": 0.35,
+  "min_grid_spacing_pct": 0.0005,
+  "directional_tp_spacing_mult": 2.0,
+  "directional_sl_spacing_mult": 1.0,
+  "neutral_exit_after_bars": 6,
+  "neutral_max_deviation_mult": 1.5,
+  "min_atr_pct": 0.00035,
+  "max_spread_bps": 4,
+  "range_bias_threshold": 0.0018,
+  "neutral_bias_ratio_max": 0.45,
+  "pullback_lookback": 5,
+  "max_deviation_from_mid_pct": 0.003,
+  "account": {
+    "deposit_usd": 30.0,
+    "leverage": 10,
+    "max_exposure_pct": 0.9,
+    "risk_per_trade_pct": 0.02,
+    "max_daily_loss_pct": 0.06,
+    "max_consecutive_losses": 3,
+    "max_open_positions": 1,
+    "min_notional_usd": 5.0,
+    "qty_step": 0.001,
+    "price_step": 0.1
+  },
+  "symbol_overrides": {
+    "BTCUSDC": {
+      "qty_step": 0.001,
+      "price_step": 0.1,
+      "min_notional_usd": 100.0
+    },
+    "ETHUSDC": {
+      "qty_step": 0.001,
+      "price_step": 0.01,
+      "min_notional_usd": 20.0
+    }
+  },
+  "exchange_info": {
+    "enabled": true,
+    "url": "https://fapi.binance.com/fapi/v1/exchangeInfo",
+    "timeout_sec": 5.0,
+    "cache_path": "tmp/exchange_info_symbol_filters.json"
+  },
+  "paths": {
+    "state": "state.json",
+    "decisions": "decisions.csv",
+    "trades": "trades.csv",
+    "daily_stats": "daily_stats.csv"
+  }
+}

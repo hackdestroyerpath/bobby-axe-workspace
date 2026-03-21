@@ -63,23 +63,16 @@
 - Result: Добавлен `paper_cycle.py`; локальный прогон выдает decisions + summary + `readiness=PAPER_READY`.
 - Next: Собрать repeating loop runner.
 
-- Time: 2026-03-20 18:24 Europe/Moscow
+- Time: 2026-03-21 18:24 Europe/Moscow
 - Related class: ACTION
 - Related ID: A-BBY-2026-03-20-04
 - Done: Изучена ключевая документация Binance USDS-M Futures.
 - Result: В память и `BINANCE_NOTES.md` занесены base URLs, testnet URLs, `exchangeInfo` rules, rate limits, 429/418/503/-1008 handling.
 - Next: Использовать эти правила для TASK-BBY-009 и future live connector design.
 
-- Time: 2026-03-20 18:27 Europe/Moscow
+- Time: 2026-03-21 11:43 Europe/Moscow
 - Related class: TASK
-- Related ID: TASK-BBY-008
-- Done: Подтвержден repeating paper loop runner.
-- Result: `paper_loop.py` локально прогнан на 2 циклах (`--iterations 2 --interval-sec 0.1`); повторно выдаются decisions, summary и `readiness=PAPER_READY`.
-- Next: Закрыть остаток по TASK-BBY-002 и перейти к TASK-BBY-009 по реальным Binance `exchangeInfo` filters.
-
-- Time: 2026-03-20 18:35 Europe/Moscow
-- Related class: ACTION
-- Related ID: A-BBY-2026-03-20-05
-- Done: Выполнен self-check без простоя; сверены текущие symbol constraints с реальными Binance USDS-M `exchangeInfo`.
-- Result: `config.json` overrides для BTCUSDC/ETHUSDC совпадают с live filters; подтверждены `qty_step`, `price_step`, `min_notional_usd`; выявлен остаток — данные пока подтягиваются только через ручной tmp-check script.
-- Next: Встроить auto-load/live refresh path в рабочий код и формально закрыть TASK-BBY-009.
+- Related ID: TASK-BBY-010
+- Done: Внедрены M2 / M3 / M4.
+- Result: default levels сжаты к 1..5, directional TP/SL добавлены в grid plan, neutral-grid removal rule задан; локальный прогон после изменений выявил economics blocker по BTCUSDC на текущем депозите.
+- Next: Перейти к M5 — define loop input contract.
