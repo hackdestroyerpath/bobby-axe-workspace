@@ -1,3 +1,0 @@
-# Example user crontab entry for Bobby live paper loop
-# Runs every minute and appends stdout/stderr to tmp/runtime_logs/bobby_live_loop.log via the wrapper.
-* * * * * /bin/bash /home/openclaw/.openclaw/workspace-bobbys/run_bobby_live_loop.sh
