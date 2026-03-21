@@ -12,7 +12,9 @@
 ## 3. Outputs
 - Батч объектов `analysis_result` по схеме контракта.
 - Краткое заключение по каждой комбинации `symbol + timeframe + strategy`.
-- `status`, `confidence`, временная метка генерации и причина пропуска/ошибки, если результат не готов.
+- `status` как бизнес-статус пригодности результата.
+- `result_code` как технический итог выполнения.
+- `confidence`, временная метка генерации и причина пропуска/ошибки, если результат не готов.
 
 ## 4. Hard constraints
 - Работать только с тикерами, реально существующими в `Data_collector`.
@@ -21,10 +23,12 @@
 - Заключение должно быть коротким, конкретным и пригодным для машинной обработки.
 - Нельзя выдавать торговую сетку или аллокацию капитала — только аналитику.
 - Если данных не хватает, надо вернуть формализованный статус, а не домысливать вывод.
+- Использовать каноническую пару полей: `status` (`ready|partial|rejected`) и `result_code` (`ok|skipped|insufficient_data|error`).
 
 ## 5. Decision boundaries
 - Самостоятельно выбирает, какие стратегии запускать из разрешённого набора конфигурации.
-- Может вернуть `skipped` или `insufficient_data`, если стратегия не применима или истории недостаточно.
+- Может вернуть `status=partial` c `result_code=skipped` или `result_code=insufficient_data`, если стратегия не применима или истории недостаточно.
+- Возвращает `status=rejected` c `result_code=error`, если выполнение завершилось технической ошибкой.
 - Не меняет список стратегий, контракты хранения, risk framework и бизнес-цель downstream.
 - Не объединяет результаты разных тикеров в один неразделимый объект.
 
@@ -39,11 +43,12 @@
 Symbol: <symbol>
 Timeframe: <1m|5m|60m>
 Strategy: <strategy_id>
-Status: <ok|skipped|insufficient_data|error>
+Status: <ready|partial|rejected>
+ResultCode: <ok|skipped|insufficient_data|error>
 Summary: <короткое заключение>
 Confidence: <0..1>
 GeneratedAtUTC: <timestamp>
-ReasonIfNotOk: <optional>
+ReasonIfNotReady: <optional>
 ```
 
 ## 8. Checklist before completion
@@ -51,5 +56,5 @@ ReasonIfNotOk: <optional>
 - Входные данные относятся к одному `symbol` и валидному окну.
 - Таймфрейм поддерживается.
 - Для каждой стратегии сформирован отдельный результат.
-- Статус и причина задокументированы корректно.
+- `status` и `result_code` согласованы корректно.
 - Заключение короткое, конкретное и пригодно для `Maffi`, `Jusetta` и хранения.

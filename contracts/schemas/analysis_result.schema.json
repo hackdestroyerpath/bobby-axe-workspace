@@ -15,12 +15,13 @@
     "confidence",
     "observed_at",
     "source_window",
-    "status"
+    "status",
+    "result_code"
   ],
   "properties": {
     "event_type": { "const": "analysis_result" },
     "analysis_id": { "type": "string", "minLength": 1 },
-    "symbol": { "type": "string", "pattern": "^[A-Z0-9_\\-]+$" },
+    "symbol": { "type": "string", "pattern": "^[A-Z0-9_-]+$" },
     "strategy": { "type": "string", "minLength": 1 },
     "frame": { "type": "string", "enum": ["1m", "5m", "60m"] },
     "signal": { "type": "string", "enum": ["bullish", "bearish", "neutral", "ignore"] },
@@ -36,7 +37,37 @@
         "to": { "type": "string", "format": "date-time" }
       }
     },
-    "status": { "type": "string", "enum": ["ready", "ignored"] },
+    "status": { "type": "string", "enum": ["ready", "partial", "rejected"] },
+    "result_code": { "type": "string", "enum": ["ok", "skipped", "insufficient_data", "error"] },
     "details": { "type": "object" }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "result_code": { "const": "ok" } },
+        "required": ["result_code"]
+      },
+      "then": {
+        "properties": { "status": { "const": "ready" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "result_code": { "enum": ["skipped", "insufficient_data"] } },
+        "required": ["result_code"]
+      },
+      "then": {
+        "properties": { "status": { "const": "partial" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "result_code": { "const": "error" } },
+        "required": ["result_code"]
+      },
+      "then": {
+        "properties": { "status": { "const": "rejected" } }
+      }
+    }
+  ]
 }
