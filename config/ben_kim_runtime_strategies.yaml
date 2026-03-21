@@ -1,0 +1,106 @@
+version: 1
+owner: Ben_Kim
+status: draft-runtime
+updated_at_utc: 2026-03-21T22:40:00Z
+
+runtime_profile: live_snapshot_default
+
+timeframes:
+  - 1m
+  - 5m
+  - 60m
+
+strategies:
+  - strategy_id: price_levels_fibo_horizontal_volume
+    display_name: Price Levels + Fibonacci + Horizontal Volume
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_feature_groups:
+      - levels
+      - fibonacci
+      - horizontal_volume
+    expected_output_style: short_zone_interpretation
+    max_conclusion_length: 260
+
+  - strategy_id: vertical_volume
+    display_name: Vertical Volume
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_feature_groups:
+      - vertical_volume
+    expected_output_style: short_volume_confirmation
+    max_conclusion_length: 220
+
+  - strategy_id: rsi_macd
+    display_name: RSI + MACD
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_feature_groups:
+      - rsi_macd
+    expected_output_style: short_momentum_interpretation
+    max_conclusion_length: 200
+
+  - strategy_id: trade_speed
+    display_name: Trade Speed
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_feature_groups:
+      - trade_speed
+    expected_output_style: short_flow_interpretation
+    max_conclusion_length: 200
+
+  - strategy_id: added_later_placeholder
+    display_name: Added Later Placeholder
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_feature_groups: []
+    expected_output_style: reserved_strategy_placeholder
+    default_result_code_if_not_implemented: skipped
+    default_status_if_not_implemented: partial
+    max_conclusion_length: 140
+
+  - strategy_id: elliott_waves
+    display_name: Elliott Waves
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_feature_groups:
+      - elliott
+      - fibonacci
+      - levels
+    expected_output_style: short_wave_candidate_interpretation
+    max_conclusion_length: 240
+
+output_contract:
+  event_type: analysis_result
+  per_combination_result: true
+  writeback_target: Jack/storage
+  required_fields:
+    - symbol
+    - strategy
+    - frame
+    - conclusion
+    - observed_at
+    - status
+    - result_code
+    - confidence
+
+formula:
+  results_per_ticker: timeframes_count * active_strategies_count
