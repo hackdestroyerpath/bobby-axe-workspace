@@ -1,0 +1,82 @@
+version: 1
+owner: Ben_Kim
+updated_at_utc: 2026-03-21T00:00:00Z
+
+strategies:
+  - strategy_id: momentum_bias_v1
+    display_name: Momentum Bias
+    enabled: true
+    applicable_timeframes:
+      - 1m
+      - 5m
+    required_inputs:
+      - second_bar.close
+      - second_bar.volume
+      - timeframes.1m
+      - timeframes.5m
+      - last_120_seconds
+    priority: 10
+    max_conclusion_length: 240
+    skipped_conditions:
+      - code: disabled_in_config
+        when: Стратегия отключена в конфиге и не должна запускаться.
+      - code: unsupported_timeframe
+        when: Запрошенный таймфрейм отсутствует в applicable_timeframes.
+      - code: insufficient_history
+        when: Доступно меньше 120 секунд истории или отсутствует хотя бы один полный 1m/5m бар.
+      - code: stale_market_snapshot
+        when: Последний bar старше 90 секунд относительно generated_at_utc.
+
+  - strategy_id: liquidity_reversal_v1
+    display_name: Liquidity Reversal
+    enabled: true
+    applicable_timeframes:
+      - 5m
+      - 60m
+    required_inputs:
+      - second_bar.open
+      - second_bar.high
+      - second_bar.low
+      - second_bar.close
+      - second_bar.trade_count
+      - second_bar.bid_volume
+      - second_bar.ask_volume
+      - timeframes.5m
+      - timeframes.60m
+      - last_720_seconds
+    priority: 20
+    max_conclusion_length: 280
+    skipped_conditions:
+      - code: disabled_in_config
+        when: Стратегия отключена в конфиге.
+      - code: unsupported_timeframe
+        when: Таймфрейм вне списка applicable_timeframes.
+      - code: insufficient_history
+        when: Нет минимум 12 закрытых 1m баров и 2 закрытых 5m баров для локального контекста.
+      - code: flat_session
+        when: За анализируемое окно отсутствует значимое расширение диапазона или trade_count слишком низкий.
+
+  - strategy_id: volatility_regime_v1
+    display_name: Volatility Regime Filter
+    enabled: false
+    applicable_timeframes:
+      - 1m
+      - 5m
+      - 60m
+    required_inputs:
+      - second_bar.high
+      - second_bar.low
+      - second_bar.close
+      - timeframes.1m
+      - timeframes.5m
+      - timeframes.60m
+      - rolling_atr_14
+    priority: 30
+    max_conclusion_length: 180
+    skipped_conditions:
+      - code: disabled_in_config
+        when: enabled=false, стратегия пропускается до отдельного включения.
+      - code: missing_indicator
+        when: Невозможно рассчитать rolling_atr_14 или отсутствуют данные старшего таймфрейма.
+      - code: insufficient_history
+        when: Истории меньше 14 полных баров на выбранном таймфрейме.
