@@ -1,36 +1,31 @@
 # Acceptance Criteria
 
 ## Core acceptance criteria
-- Агент умеет делегировать задачи только субагентам и не подменяет их самостоятельной реализацией production-логики.
-- Все разрешённые источники анализа покрыты отдельными субагентами.
-- Решение формируется только из разрешённых сигналов.
-- Grid параметры генерируются полностью для каждого торгового решения.
+- Система автономно принимает торговое решение внутри `probabilistic_decision_engine`, а не опирается на отдельные directional-сигналы аналитических субагентов.
+- Решение формируется на основе live market data, внутренних признаков и нормализованного `probability snapshot`.
+- Расчёт вероятностей `LONG`, `SHORT`, `NEUTRAL` трассируем и воспроизводим через audit artifacts.
+- При недостатке качества данных или уверенности система корректно деградирует в `NEUTRAL` или безопасный отказ.
+- Grid параметры генерируются полностью для каждого исполнимого торгового решения.
 - Risk constraints валидируются до размещения ордеров.
 - Есть отдельные сценарии для `LONG`, `SHORT`, `NEUTRAL`.
 - Memory-файлы обновляются после каждого шага.
 
 ## Expanded interpretation
 
-### 1. Delegation model
-- Supervisor выполняет функции планирования, декомпозиции, контроля, интеграции и приёмки.
-- Аналитическая, расчётная и исполнительная логика распределена по субагентам.
-- У каждой атомарной задачи есть owner и ожидаемый артефакт.
+### 1. Autonomous decision model
+- Центральный decision engine выполняет аналитическую и вероятностную обработку самостоятельно.
+- Supervisor и downstream-модули не подменяют production-логику ручной интерпретацией рынка.
+- У каждого расчётного цикла есть owner, набор входных данных и воспроизводимый decision artifact.
 
-### 2. Coverage of allowed analytical sources
-- Отдельно описаны субагенты для:
-  - vertical volumes;
-  - horizontal volumes;
-  - Fibonacci levels;
-  - ticks (sum + timing);
-  - activity (trades per second);
-  - context activity (BTC + sector + SPX и др.);
-  - Elliott waves.
-- В спецификациях отсутствует использование неразрешённых аналитических источников для принятия решений.
+### 2. Probability-driven governance
+- Контракты данных фиксируют происхождение market state, derived features и итоговых вероятностей.
+- Финальное решение по открытию grid можно трассировать до `state snapshot`, `probability snapshot` и правил деградации.
+- В архитектуре отсутствует требование покрывать фиксированный список аналитических источников отдельными субагентами.
 
-### 3. Signal governance
-- Контракты сигналов фиксируют происхождение каждого сигнала.
-- Signal aggregator и scoring/weighting engine принимают только whitelisted inputs.
-- Финальное решение по открытию grid можно трассировать до набора разрешённых сигналов и их весов.
+### 3. Traceability and explainability
+- Для каждого решения сохраняются ссылки на входные snapshots, calculation trace и reason codes.
+- Вероятности `LONG`, `SHORT`, `NEUTRAL` нормализованы и объяснимы через derived features.
+- Любое понижение уверенности или отказ от directional-сделки сопровождается явными `degradation_flags` или neutral fallback reason.
 
 ### 4. Grid completeness
 - Для каждой proposed grid задаются instrument/ticker, direction, price range, number of grids, SL, TP.
