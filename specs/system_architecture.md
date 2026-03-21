@@ -53,6 +53,16 @@
 - Если probability snapshot не проходит проверки целостности, execution и risk layer должны получить безопасный отказ вместо частично валидного directional-решения.
 - Если grid proposal не согласован с risk constraints, итоговое решение должно быть либо пересчитано, либо понижено до безопасного состояния без агрессивной постановки сетки.
 
+
+## Stage-based analysis contracts
+Актуальные контракты analysis layer вынесены в `agents/analysis/` и разделены по этапам расчёта:
+- `feature_extraction_agent.md` — извлечение микро-признаков и контроль качества данных;
+- `probability_engine_agent.md` — расчёт распределения `LONG` / `SHORT` / `NEUTRAL`;
+- `grid_synthesis_agent.md` — синтез параметров сетки и execution proposal;
+- `neutral_lifecycle_agent.md` — сопровождение, переоценка и снятие `NEUTRAL`.
+
+Эти документы описывают контракт модулей верхнего уровня и намеренно не фиксируют обязательный список индикаторов, внешних аналитических школ или allowlist источников.
+
 ## Граница decision / execution / risk layers
 `probabilistic_decision_engine` публикует только формализованные артефакты:
 - `state snapshot` с описанием актуального состояния рынка и набора использованных признаков;

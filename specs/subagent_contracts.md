@@ -132,6 +132,16 @@
 - `suggested_tp` и `suggested_sl` — целевой и защитный уровни либо явное указание, что они не применяются в `blocked`/`neutral_only` сценарии;
 - `execution_constraints` — ключевые ограничения, которые execution/risk layer обязаны дополнительно проверить.
 
+
+## Связанные stage-based спецификации
+Детализация этапов расчёта хранится в `agents/analysis/`:
+- `feature_extraction_agent.md`;
+- `probability_engine_agent.md`;
+- `grid_synthesis_agent.md`;
+- `neutral_lifecycle_agent.md`.
+
+Эти документы задают обязанности модулей pipeline, но не навязывают фиксированный перечень внешних аналитических источников.
+
 ## Правила деградации и совместимости
 - Если качество данных недостаточно для directional-решения, движок обязан публиковать валидный `probability_snapshot` с повышенной вероятностью `NEUTRAL` и соответствующими `degradation_flags`.
 - Если grid-параметры не могут быть рассчитаны безопасно, `grid_proposal.status` должен быть `neutral_only` или `blocked`.
