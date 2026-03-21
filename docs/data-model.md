@@ -13,6 +13,30 @@ Accepted.
 
 ---
 
+## Canonical dictionary
+
+Для всей системы принимается один канонический словарь рыночных данных:
+
+| Семантика | Каноническое поле | Не использовать как каноническое имя | Почему |
+| --- | --- | --- | --- |
+| Время сделки | `event_time_utc` | `trade_ts` | Поле должно явно обозначать business event time и UTC-нормализацию. |
+| Количество в сделке | `quantity` | `qty` | Для межкомандных контрактов приоритет у более явного имени без сокращений. |
+| Начало секундного бакета | `ts_second_utc` | `second_ts` | Имя должно явно указывать, что это timestamp календарной секунды в UTC. |
+| Общий объём в базовом активе | `base_volume` | `volume` | `volume` слишком двусмысленно: неясно, base это или quote. |
+| Агрессорный объём покупок | `buy_volume` | `bid_volume` | `bid_volume` может означать объём на bid в стакане, а не объём сделок с buyer aggressor. |
+| Агрессорный объём продаж | `sell_volume` | `ask_volume` | `ask_volume` может означать объём на ask в стакане, а не объём сделок с seller aggressor. |
+
+### Interpretation note: `buy_volume/sell_volume` vs `bid_volume/ask_volume`
+
+Эти пары полей **не считаются эквивалентными по смыслу**.
+
+- `buy_volume` / `sell_volume` в Bobby Axe означают **агрессорный объём сделок**, вычисленный по фактически исполненным трейдам.
+- `bid_volume` / `ask_volume` в рыночной микроструктуре часто означают **объём пассивной ликвидности в стакане** на bid/ask либо объём, сгруппированный по стороне котировки.
+
+Следовательно, старые названия `bid_volume` и `ask_volume` в наших контрактах признаны некорректными и выводятся из употребления. Каноническая модель использует только `buy_volume` и `sell_volume`.
+
+---
+
 ## Entity: `raw_trades`
 
 Назначение: append-mostly журнал нормализованных входящих сделок из внешнего источника.
@@ -24,7 +48,7 @@ Accepted.
 | `event_time_utc` | `TIMESTAMP` | No | Время сделки в источнике, нормализованное в UTC, с точностью не хуже миллисекунд. Это business timestamp, который используется для построения секундных агрегатов. |
 | `symbol` | `VARCHAR` | No | Канонический торговый инструмент, например `BTCUSDT`. Значение хранится в одном нормализованном формате по всей системе. |
 | `price` | `DECIMAL` | No | Цена сделки в котируемом активе. Значение должно храниться без потери точности источника. |
-| `qty` | `DECIMAL` | No | Количество базового актива в сделке. Значение должно храниться без потери точности источника. |
+| `quantity` | `DECIMAL` | No | Количество базового актива в сделке. Значение должно храниться без потери точности источника. |
 | `side_aggressor` | `VARCHAR` | No | Сторона агрессора сделки. Допустимые значения: `BUY` или `SELL`. `BUY` означает, что агрессором был покупатель, `SELL` — продавец. |
 | `trade_id` | `VARCHAR` или `BIGINT` | No | Идентификатор сделки во внешнем источнике. Должен быть стабильным в пределах пары `source + symbol`. |
 | `source` | `VARCHAR` | No | Идентификатор источника данных, например `binance_ws_trade` или `binance_rest_aggtrade`. |
@@ -35,7 +59,7 @@ Accepted.
 - Одна строка `raw_trades` соответствует одной нормализованной сделке из источника.
 - Канонический ключ дедупликации: `source + symbol + trade_id`.
 - `event_time_utc` определяет, в какую секунду попадает сделка при расчёте `second_bar`.
-- `price * qty` интерпретируется как quote notional сделки и используется для расчёта `quote_volume` и `vwap` в агрегатах.
+- `price * quantity` интерпретируется как quote notional сделки и используется для расчёта `quote_volume` и `vwap` в агрегатах.
 
 ---
 
@@ -54,10 +78,10 @@ Accepted.
 | `low` | `DECIMAL` | No* | Минимальная цена сделки внутри секунды. |
 | `close` | `DECIMAL` | No* | Цена последней сделки внутри секунды по `event_time_utc`, а при одинаковом времени — по стабильному tie-break. |
 | `trade_count` | `BIGINT` | No | Количество сделок, вошедших в секунду. |
-| `base_volume` | `DECIMAL` | No | Сумма `qty` по всем сделкам секунды. |
-| `quote_volume` | `DECIMAL` | No | Сумма `price * qty` по всем сделкам секунды. |
-| `buy_volume` | `DECIMAL` | No | Сумма `qty` по сделкам, где `side_aggressor = BUY`. |
-| `sell_volume` | `DECIMAL` | No | Сумма `qty` по сделкам, где `side_aggressor = SELL`. |
+| `base_volume` | `DECIMAL` | No | Сумма `quantity` по всем сделкам секунды. |
+| `quote_volume` | `DECIMAL` | No | Сумма `price * quantity` по всем сделкам секунды. |
+| `buy_volume` | `DECIMAL` | No | Сумма `quantity` по сделкам, где `side_aggressor = BUY`. |
+| `sell_volume` | `DECIMAL` | No | Сумма `quantity` по сделкам, где `side_aggressor = SELL`. |
 | `delta_volume` | `DECIMAL` | No | Разница `buy_volume - sell_volume`. |
 | `vwap` | `DECIMAL` | No* | Объёмно-взвешенная цена секунды: `quote_volume / base_volume`. |
 
@@ -68,10 +92,10 @@ Accepted.
 Для секунды `(symbol, ts_second_utc)`:
 
 - `trade_count = count(*)`
-- `base_volume = sum(qty)`
-- `quote_volume = sum(price * qty)`
-- `buy_volume = sum(qty where side_aggressor = 'BUY')`
-- `sell_volume = sum(qty where side_aggressor = 'SELL')`
+- `base_volume = sum(quantity)`
+- `quote_volume = sum(price * quantity)`
+- `buy_volume = sum(quantity where side_aggressor = 'BUY')`
+- `sell_volume = sum(quantity where side_aggressor = 'SELL')`
 - `delta_volume = buy_volume - sell_volume`
 - `vwap = quote_volume / base_volume`, если `base_volume > 0`
 - `open` = `price` первой сделки в секунде
@@ -88,6 +112,23 @@ Accepted.
 3. затем по `source` по возрастанию.
 
 Это правило делает выбор `open` и `close` детерминированным при повторной загрузке одного и того же набора raw-данных.
+
+---
+
+## Storage fields vs transport fields
+
+Канонический словарь одинаков для storage и transport. Публичные JSON-контракты используют те же имена, что и БД/документация, чтобы не поддерживать две равноправные терминологии.
+
+Допускается только односторонняя совместимость на границах legacy-интеграций: старые имена могут существовать как временные алиасы во внутренних адаптерах, но не как канонические поля схемы.
+
+| Семантика | Canonical storage field | Canonical transport field | Legacy alias | Статус |
+| --- | --- | --- | --- | --- |
+| Время сделки | `event_time_utc` | `event_time_utc` | `trade_ts` | deprecated |
+| Количество сделки | `quantity` | `quantity` | `qty` | deprecated |
+| Секундный timestamp | `ts_second_utc` | `ts_second_utc` | `second_ts` | deprecated |
+| Общий объём | `base_volume` | `base_volume` | `volume` | deprecated |
+| Агрессорный объём покупки | `buy_volume` | `buy_volume` | `bid_volume` | deprecated and semantically ambiguous |
+| Агрессорный объём продажи | `sell_volume` | `sell_volume` | `ask_volume` | deprecated and semantically ambiguous |
 
 ---
 
@@ -196,7 +237,7 @@ Accepted.
 2. **Фиксированная нормализация времени.** Каждая сделка всегда маппится в секунду как `floor(event_time_utc to second)` в UTC.
 3. **Стабильный tie-break для `open`/`close`.** При одинаковом `event_time_utc` используется порядок `trade_id`, затем `source`.
 4. **Полный пересчёт окна.** При reprocessing окно времени для `second_bar` и старших таймфреймов пересобирается целиком из raw/source seconds, а не патчится инкрементальными поправками вручную.
-5. **Фиксированные формулы.** `quote_volume`, `delta_volume` и `vwap` всегда считаются одинаково: `quote_volume = sum(price * qty)`, `delta_volume = buy_volume - sell_volume`, `vwap = quote_volume / base_volume`.
+5. **Фиксированные формулы.** `quote_volume`, `delta_volume` и `vwap` всегда считаются одинаково: `quote_volume = sum(price * quantity)`, `delta_volume = buy_volume - sell_volume`, `vwap = quote_volume / base_volume`.
 6. **Пустые интервалы материализуются одинаково.** Если система строит полную временную сетку, пустые секунды и пустые старшие бары всегда получают один и тот же набор значений: нулевые объёмы и `NULL`-цены.
 7. **Старшие таймфреймы строятся только из секунд.** Это исключает расхождение между прямой агрегацией из raw и агрегацией через промежуточный слой.
 

@@ -11,7 +11,7 @@ strategies:
       - 5m
     required_inputs:
       - second_bar.close
-      - second_bar.volume
+      - second_bar.base_volume
       - timeframes.1m
       - timeframes.5m
       - last_120_seconds
@@ -39,8 +39,8 @@ strategies:
       - second_bar.low
       - second_bar.close
       - second_bar.trade_count
-      - second_bar.bid_volume
-      - second_bar.ask_volume
+      - second_bar.buy_volume
+      - second_bar.sell_volume
       - timeframes.5m
       - timeframes.60m
       - last_720_seconds

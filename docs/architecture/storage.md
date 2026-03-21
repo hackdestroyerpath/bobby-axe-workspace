@@ -62,9 +62,27 @@ Curated layer отвечает за:
 Правила:
 
 - все timestamp-поля хранятся как UTC;
-- имена временных полей должны явно отражать тип времени (`trade_ts`, `second_ts`, `bar_ts`, `observed_at`, `approved_at`, `exported_at`);
+- имена временных полей в рыночных данных должны явно отражать UTC-семантику (`event_time_utc`, `ts_second_utc`); для остальных доменов UTC-требование также сохраняется, но конкретное имя фиксируется их собственным контрактом;
 - при чтении в UI/отчёты допускается локальная конверсия, но source of truth в БД всегда UTC;
 - границы партиций и retention считаются в UTC.
+
+
+## Storage fields vs transport fields
+
+Канонический словарь для storage и transport единый. База данных, документация и JSON-схемы должны использовать одинаковые имена полей, чтобы исключить двусмысленность при агрегации, мониторинге и отладке.
+
+Если на границе конкретного API понадобится компактный JSON, он должен рассматриваться как слой совместимости, а не как альтернативная каноническая модель. В таком случае адаптер обязан явно маппить compact aliases в canonical fields до записи в storage или публикации в основной контракт.
+
+| Семантика | Canonical storage field | Canonical transport field | Legacy compact alias | Комментарий |
+| --- | --- | --- | --- | --- |
+| Время сделки | `event_time_utc` | `event_time_utc` | `trade_ts` | UTC business timestamp сделки |
+| Количество сделки | `quantity` | `quantity` | `qty` | Размер сделки в базовом активе |
+| Секундный timestamp | `ts_second_utc` | `ts_second_utc` | `second_ts` | Начало календарной секунды UTC |
+| Общий объём | `base_volume` | `base_volume` | `volume` | `volume` слишком неоднозначно без указания единиц |
+| Объём buy aggressor | `buy_volume` | `buy_volume` | `bid_volume` | Не эквивалентно book bid liquidity |
+| Объём sell aggressor | `sell_volume` | `sell_volume` | `ask_volume` | Не эквивалентно book ask liquidity |
+
+Отдельно фиксируется семантическое правило: `buy_volume` / `sell_volume` — это объёмы исполненных сделок по стороне агрессора, а `bid_volume` / `ask_volume` в терминологии микроструктуры обычно относятся к пассивной ликвидности стакана или к стороне котировки. Поэтому эти пары терминов **не взаимозаменяемы**.
 
 ## Idempotency and deduplication policy
 
@@ -74,7 +92,7 @@ Curated layer отвечает за:
 - ingest должен быть **idempotent**;
 - повторная доставка одного и того же trade event не должна приводить к дублированию в `raw_trades`;
 - базовый natural key для дедупликации: `source + symbol + trade_id`;
-- если внешний `trade_id` недоступен или ненадёжен, fallback-ключ: `source + symbol + trade_ts + price + quantity + side`;
+- если внешний `trade_id` недоступен или ненадёжен, fallback-ключ: `source + symbol + event_time_utc + price + quantity + side_aggressor`;
 - все повторные загрузки диапазона должны выполняться через `upsert`/`merge`, а не через blind insert;
 - агрегаты в curated-слое должны быть детерминированно пересчитываемыми из raw-слоя.
 
@@ -129,8 +147,8 @@ Curated layer отвечает за:
 | --- | --- |
 | Layer | raw |
 | Primary key | `source, symbol, trade_id` |
-| Secondary unique key | `source, symbol, trade_ts, price, quantity, side` как fallback, если `trade_id` ненадёжен |
-| Main indexes | `(symbol, trade_ts DESC)`, `(trade_ts DESC)`, при необходимости `(symbol, ingested_at DESC)` |
+| Secondary unique key | `source, symbol, event_time_utc, price, quantity, side_aggressor` как fallback, если `trade_id` ненадёжен |
+| Main indexes | `(symbol, event_time_utc DESC)`, `(event_time_utc DESC)`, при необходимости `(symbol, ingested_at_utc DESC)` |
 | Partitioning | обязательно по `trade_date` с под-разделением или кластеризацией по `symbol` |
 | Retention | `30-90` дней online; более старые данные — в холодный архив/объектное хранилище |
 
@@ -139,11 +157,11 @@ Curated layer отвечает за:
 - `source`
 - `symbol`
 - `trade_id`
-- `trade_ts`
+- `event_time_utc`
 - `price`
 - `quantity`
-- `side`
-- `ingested_at`
+- `side_aggressor`
+- `ingested_at_utc`
 - `payload_checksum` или аналогичный technical hash
 
 ### `second_bars`
@@ -152,23 +170,26 @@ Curated layer отвечает за:
 | Field | Decision |
 | --- | --- |
 | Layer | curated |
-| Primary key | `symbol, second_ts` |
-| Main indexes | `(second_ts DESC)`, `(symbol, second_ts DESC)` |
-| Partitioning | обязательно по `bar_date`/дате `second_ts` с под-разделением или кластеризацией по `symbol` |
+| Primary key | `symbol, ts_second_utc` |
+| Main indexes | `(ts_second_utc DESC)`, `(symbol, ts_second_utc DESC)` |
+| Partitioning | обязательно по `bar_date`/дате `ts_second_utc` с под-разделением или кластеризацией по `symbol` |
 | Retention | `180-365` дней online |
 
 Рекомендуемые поля:
 
 - `symbol`
-- `second_ts`
+- `ts_second_utc`
 - `open`
 - `high`
 - `low`
 - `close`
-- `volume`
+- `base_volume`
+- `quote_volume`
 - `trade_count`
-- `bid_volume`
-- `ask_volume`
+- `buy_volume`
+- `sell_volume`
+- `delta_volume`
+- `vwap`
 - `build_version`
 - `rebuilt_at`
 
@@ -191,7 +212,8 @@ Curated layer отвечает за:
 - `high`
 - `low`
 - `close`
-- `volume`
+- `base_volume`
+- `quote_volume`
 - `trade_count`
 - `source_second_count`
 - `build_version`
@@ -215,7 +237,8 @@ Curated layer отвечает за:
 - `high`
 - `low`
 - `close`
-- `volume`
+- `base_volume`
+- `quote_volume`
 - `trade_count`
 - `source_1m_count`
 - `build_version`
@@ -239,7 +262,8 @@ Curated layer отвечает за:
 - `high`
 - `low`
 - `close`
-- `volume`
+- `base_volume`
+- `quote_volume`
 - `trade_count`
 - `source_5m_count`
 - `build_version`
