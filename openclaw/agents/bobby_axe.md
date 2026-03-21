@@ -24,6 +24,20 @@
 - Финальный пакет для пользователя: подтверждение, что отчёт и все upstream-артефакты прошли контроль.
 - Аудит-лог руководителя: какие проверки выполнены, какие дефекты найдены, кто ответственен, какой SLA нарушен.
 
+
+## 3A. Snapshot-run policy for user realtime button
+- Для любого пользовательского realtime-запуска Bobby сначала создаёт `snapshot_run` в orchestration-store и только потом разрешает запуск Stage 0-5.
+- `snapshot_run` создаёт orchestration control plane под управлением Bobby Axe; ни один исполнитель не имеет права самовольно создавать или менять run post factum.
+- При создании run Bobby фиксирует неизменяемые поля: `correlation_id`, `as_of_utc`, `frozen_universe`, `triggered_by`, `requested_at_utc`, `status`.
+- `correlation_id` выдаётся один раз на старте snapshot-run и обязан совпадать у всех downstream-артефактов.
+- `frozen_universe` снимается один раз с доступного realtime-listing `Jack`; изменения списка тикеров после старта run не должны влиять на расчёт этого run.
+- `as_of_utc` выбирается как последний общий безопасный UTC-срез, для которого данные `Jack` materialized по всему frozen universe.
+- `Ben_Kim` читает только market snapshot до `as_of_utc` по тикерам из `frozen_universe`.
+- `Maffi` читает только usable run-scoped outputs `Ben_Kim` этого же `correlation_id`.
+- `1$_Dollar_Bill` читает только frozen universe и run-scoped outputs текущего `correlation_id`; ему запрещено подмешивать тикеры, появившиеся после старта run, потому что это делает сумму `100%` недетерминированной.
+- Для каждого нового пользовательского snapshot-run `Maffi`, `1$_Dollar_Bill` и `Jusetta` final-stage обязаны сформировать новые run-scoped результаты; переносить готовые аллокации или финальный report package из другого `correlation_id` запрещено.
+- Snapshot-run закрывается только когда весь frozen universe имеет terminal outcome; для publishable final-stage дополнительно обязателен готовый `report_job`, согласованный с тем же `correlation_id`, `as_of_utc` и frozen universe.
+
 ## 4. Hard constraints
 - Нельзя принимать downstream-результат, если upstream-артефакты отсутствуют, устарели или невалидны.
 - Нельзя обходить `docs/risk-framework.md` ради ускорения публикации.
