@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/analysis_result.schema.json",
+  "title": "analysis_result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_type",
+    "analysis_id",
+    "symbol",
+    "strategy",
+    "frame",
+    "signal",
+    "conclusion",
+    "confidence",
+    "observed_at",
+    "source_window",
+    "status"
+  ],
+  "properties": {
+    "event_type": { "const": "analysis_result" },
+    "analysis_id": { "type": "string", "minLength": 1 },
+    "symbol": { "type": "string", "pattern": "^[A-Z0-9_\\-]+$" },
+    "strategy": { "type": "string", "minLength": 1 },
+    "frame": { "type": "string", "enum": ["1m", "5m", "60m"] },
+    "signal": { "type": "string", "enum": ["bullish", "bearish", "neutral", "ignore"] },
+    "conclusion": { "type": "string", "minLength": 1 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "source_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": "string", "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" }
+      }
+    },
+    "status": { "type": "string", "enum": ["ready", "ignored"] },
+    "details": { "type": "object" }
+  }
+}

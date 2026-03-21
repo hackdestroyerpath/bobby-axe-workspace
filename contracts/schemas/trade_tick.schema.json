@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/trade_tick.schema.json",
+  "title": "trade_tick",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_type",
+    "source",
+    "symbol",
+    "trade_id",
+    "price",
+    "quantity",
+    "side",
+    "trade_ts",
+    "ingested_at"
+  ],
+  "properties": {
+    "event_type": { "const": "trade_tick" },
+    "source": { "type": "string", "minLength": 1 },
+    "symbol": { "type": "string", "pattern": "^[A-Z0-9_\\-]+$" },
+    "trade_id": { "type": "string", "minLength": 1 },
+    "price": { "type": "number", "exclusiveMinimum": 0 },
+    "quantity": { "type": "number", "exclusiveMinimum": 0 },
+    "side": { "type": "string", "enum": ["buy", "sell"] },
+    "trade_ts": { "type": "string", "format": "date-time" },
+    "ingested_at": { "type": "string", "format": "date-time" }
+  }
+}

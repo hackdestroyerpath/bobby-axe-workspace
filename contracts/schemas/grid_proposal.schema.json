@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/grid_proposal.schema.json",
+  "title": "grid_proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_type",
+    "proposal_id",
+    "symbol",
+    "frame",
+    "direction",
+    "grid_upper_price",
+    "grid_lower_price",
+    "grid_count",
+    "sl",
+    "tp",
+    "rationale",
+    "based_on",
+    "status"
+  ],
+  "properties": {
+    "event_type": { "const": "grid_proposal" },
+    "proposal_id": { "type": "string", "minLength": 1 },
+    "symbol": { "type": "string", "pattern": "^[A-Z0-9_\\-]+$" },
+    "frame": { "const": "5m" },
+    "direction": { "type": "string", "enum": ["long", "short"] },
+    "grid_upper_price": { "type": "number", "exclusiveMinimum": 0 },
+    "grid_lower_price": { "type": "number", "exclusiveMinimum": 0 },
+    "grid_count": { "type": "integer", "minimum": 1 },
+    "sl": { "type": "number", "exclusiveMinimum": 0 },
+    "tp": { "type": "number", "exclusiveMinimum": 0 },
+    "rationale": { "type": "string", "minLength": 1 },
+    "based_on": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["analysis_ids"],
+      "properties": {
+        "analysis_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "signal_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bullish": { "type": "integer", "minimum": 0 },
+            "bearish": { "type": "integer", "minimum": 0 },
+            "neutral": { "type": "integer", "minimum": 0 },
+            "ignore": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "status": { "type": "string", "enum": ["ready", "rejected"] }
+  }
+}
