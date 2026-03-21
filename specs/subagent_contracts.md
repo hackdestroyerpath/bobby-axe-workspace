@@ -1,104 +1,140 @@
-# Subagent Contracts
+# Decision Engine Contracts
 
 ## Цель
-Зафиксировать единый контракт сигналов для разрешённых аналитических субагентов и правила их передачи в decision layer.
+Зафиксировать единый контракт артефактов, которые `probabilistic_decision_engine` публикует для downstream-модулей вместо directional-сигналов от отдельных аналитических субагентов.
 
-## Разрешённые аналитические субагенты
-Только следующие источники могут поставлять аналитические сигналы в модуль-агрегатор:
-- `vertical_volume_agent`
-- `horizontal_volume_agent`
-- `fibonacci_agent`
-- `ticks_agent`
-- `trade_activity_agent`
-- `global_context_agent`
-- `elliott_wave_agent`
+## Публикуемые артефакты
+Центральный движок публикует три связанных артефакта:
+- `state snapshot` — формализованное описание актуального состояния рынка и внутренне вычисленных признаков;
+- `probability snapshot` — вероятностная оценка `LONG`, `SHORT`, `NEUTRAL` с объясняющими факторами;
+- `grid proposal` — исполнимое предложение по параметрам сетки и защитным уровням.
 
-Любой иной аналитический источник считается нерелевантным для decision layer и не должен участвовать в расчёте торгового решения.
+Эти артефакты могут публиковаться как единый пакет на один символ/цикл расчёта или как три согласованных сообщения с общим `decision_id`.
 
-## Единый JSON-like контракт сигнала
-Каждый разрешённый аналитический субагент обязан публиковать сигнал в нормализованном JSON-like формате:
-
+## Единый JSON-like контракт decision snapshot
 ```json
 {
-  "agent_id": "vertical_volume_agent",
+  "decision_id": "BTCUSDC-2026-03-21T12:34:56Z",
   "symbol": "BTCUSDC",
   "timestamp": "2026-03-21T12:34:56Z",
-  "timeframe": "1m",
-  "direction_candidate": "LONG | SHORT | NEUTRAL",
-  "confidence": {
-    "score": 0.0,
-    "scale": "0.0-1.0",
-    "label": "low | medium | high"
+  "engine_id": "probabilistic_decision_engine",
+  "state_snapshot": {
+    "market_regime": "trend_up",
+    "feature_freshness_sec": 3,
+    "feature_window": "last_300_ticks",
+    "derived_features": [
+      {
+        "name": "microstructure_imbalance",
+        "value": 0.62,
+        "unit": "ratio",
+        "interpretation": "Покупательская агрессия доминирует"
+      }
+    ],
+    "data_quality": {
+      "status": "ok | degraded | stale",
+      "gaps_detected": 0,
+      "notes": []
+    },
+    "source_snapshot_refs": [
+      "artifacts/ingestion/BTCUSDC/2026-03-21T12-34-56Z.json"
+    ]
   },
-  "supporting_features": [
-    {
-      "name": "relative_volume_ratio",
-      "value": 2.4,
-      "unit": "x",
-      "interpretation": "Объём выше базового режима"
+  "probability_snapshot": {
+    "long": 0.58,
+    "short": 0.17,
+    "neutral": 0.25,
+    "confidence": {
+      "score": 0.58,
+      "scale": "0.0-1.0",
+      "label": "medium"
+    },
+    "dominant_outcome": "LONG",
+    "reason_codes": [
+      "trend_continuation",
+      "positive_flow_imbalance"
+    ],
+    "degradation_flags": []
+  },
+  "grid_proposal": {
+    "status": "tradable | neutral_only | blocked",
+    "direction": "LONG",
+    "recommended_grid_bounds": {
+      "lower": 101250.0,
+      "upper": 102100.0,
+      "basis": "engine_expected_value_zone"
+    },
+    "suggested_tp": {
+      "price": 102450.0,
+      "basis": "projected_upside_target"
+    },
+    "suggested_sl": {
+      "price": 100980.0,
+      "basis": "risk_invalidation_level"
+    },
+    "execution_constraints": {
+      "max_leverage": 3,
+      "margin_mode": "isolated"
     }
-  ],
-  "invalidators": [
-    "Импульс объёма исчез в следующих 3 барах",
-    "Цена вернулась ниже POC"
-  ],
-  "recommended_grid_bounds": {
-    "lower": 101250.0,
-    "upper": 102100.0,
-    "basis": "value_area_low/value_area_high"
   },
-  "suggested_tp": {
-    "price": 102450.0,
-    "basis": "next_volume_node"
-  },
-  "suggested_sl": {
-    "price": 100980.0,
-    "basis": "acceptance_below_value_area_low"
-  },
-  "data_freshness_sec": 15,
-  "source_snapshot_ref": "artifacts/vertical_volume/BTCUSDC/2026-03-21T12-34-56Z.json"
+  "audit": {
+    "calculation_trace_ref": "artifacts/decision_engine/BTCUSDC/2026-03-21T12-34-56Z.json",
+    "neutral_fallback_reason": null
+  }
 }
 ```
 
-## Обязательные поля
-- `agent_id` — идентификатор субагента, строго из списка разрешённых источников.
+## Обязательные поля верхнего уровня
+- `decision_id` — уникальный идентификатор расчётного цикла или decision package.
 - `symbol` — торговый инструмент.
-- `timestamp` — UTC-время расчёта сигнала в ISO 8601.
-- `timeframe` — рабочий таймфрейм анализа.
-- `direction_candidate` — кандидат направления: `LONG`, `SHORT` или `NEUTRAL`.
-- `confidence` — нормализованный confidence score.
-- `supporting_features` — список признаков, объясняющих сигнал.
-- `invalidators` — список условий, при которых сигнал должен быть ослаблен или снят.
-- `recommended_grid_bounds` — предложенные границы рабочей grid-зоны.
-- `suggested_tp` — предлагаемая цель фиксации прибыли.
-- `suggested_sl` — предлагаемый защитный уровень.
-- `data_freshness_sec` — возраст данных в секундах на момент публикации.
-- `source_snapshot_ref` — путь к артефакту/снимку, на базе которого получен сигнал.
+- `timestamp` — UTC-время публикации в ISO 8601.
+- `engine_id` — идентификатор движка, публикующего решение.
+- `state_snapshot` — описание состояния рынка, derived features и качества данных.
+- `probability_snapshot` — нормализованное распределение вероятностей и объяснение исхода.
+- `grid_proposal` — параметры исполнения или явный безопасный отказ.
+- `audit` — ссылки на trace-артефакты и причины деградации.
 
-## Требования к confidence
-Все субагенты обязаны использовать единый формат confidence:
-- `confidence.score` — число от `0.0` до `1.0`.
-- `confidence.scale` — строка `0.0-1.0` для явной фиксации шкалы.
-- `confidence.label`:
-  - `low` для `0.00-0.39`
-  - `medium` для `0.40-0.69`
-  - `high` для `0.70-1.00`
+## Требования к `state_snapshot`
+`state_snapshot` обязан содержать:
+- описание текущего market regime или эквивалентного состояния;
+- актуальность данных и/или окно расчёта признаков;
+- список `derived_features`, достаточный для объяснения решения;
+- статус качества данных и обнаруженные деградации;
+- ссылки на входные snapshot-артефакты, из которых получено состояние.
 
-## Требования к supporting_features
-Каждый элемент `supporting_features` должен содержать:
-- `name` — имя метрики/признака;
+Каждый элемент `derived_features` должен содержать:
+- `name` — имя признака;
 - `value` — числовое или категориальное значение;
 - `unit` — единица измерения или `none`;
-- `interpretation` — краткое объяснение вклада признака в направление.
+- `interpretation` — краткое объяснение влияния на решение.
 
-## Требования к invalidators
-`invalidators` должны:
-- быть проверяемыми на реальных данных;
-- описывать условия отмены, ослабления или перевода сигнала в `NEUTRAL`;
-- не содержать ссылок на нерелевантные источники или ручные субъективные решения.
+## Требования к `probability_snapshot`
+`probability_snapshot` обязан содержать:
+- `long`, `short`, `neutral` — значения от `0.0` до `1.0`;
+- нормализацию, при которой сумма трёх вероятностей равна `1.0` с допустимой технической погрешностью;
+- `confidence.score` — агрегированную уверенность в итоговом состоянии;
+- `dominant_outcome` — `LONG`, `SHORT` или `NEUTRAL`;
+- `reason_codes` — формализованные причины выбора;
+- `degradation_flags` — список флагов, объясняющих снижение уверенности или перевод в fail-safe.
 
-## Правила совместимости
-- Контракт обязателен для всех разрешённых аналитических субагентов.
-- Расширение полей допускается только с обратной совместимостью.
-- Изменение смысла обязательных полей требует синхронного обновления `specs/system_architecture.md` и спецификаций конкретных субагентов.
-- Decision layer не должен принимать сигнал без всех обязательных полей, кроме случаев явной деградации в `NEUTRAL` по policy fail-safe.
+### Требования к confidence
+- `confidence.score` — число от `0.0` до `1.0`.
+- `confidence.scale` — строка `0.0-1.0`.
+- `confidence.label`:
+  - `low` для `0.00-0.39`;
+  - `medium` для `0.40-0.69`;
+  - `high` для `0.70-1.00`.
+
+## Требования к `grid_proposal`
+`grid_proposal` обязан содержать:
+- `status` — `tradable`, `neutral_only` или `blocked`;
+- `direction` — `LONG`, `SHORT` или `NEUTRAL` в соответствии с итоговым сценарием;
+- `recommended_grid_bounds` — рекомендуемые границы сетки, если размещение допускается;
+- `suggested_tp` и `suggested_sl` — целевой и защитный уровни либо явное указание, что они не применяются в `blocked`/`neutral_only` сценарии;
+- `execution_constraints` — ключевые ограничения, которые execution/risk layer обязаны дополнительно проверить.
+
+## Правила деградации и совместимости
+- Если качество данных недостаточно для directional-решения, движок обязан публиковать валидный `probability_snapshot` с повышенной вероятностью `NEUTRAL` и соответствующими `degradation_flags`.
+- Если grid-параметры не могут быть рассчитаны безопасно, `grid_proposal.status` должен быть `neutral_only` или `blocked`.
+- Расширение контракта допускается только с обратной совместимостью.
+- Изменение смысла обязательных полей требует синхронного обновления `specs/system_architecture.md` и downstream-спецификаций.
+- Execution и risk layer не должны принимать решение без обязательных полей, кроме случаев явного безопасного отказа, описанного в контракте.
