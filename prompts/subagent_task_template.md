@@ -1,18 +1,19 @@
 # Subagent Task Template
 
-## Context
-- Source of truth: `workspace_start/ТЗ.txt`
-- Current plan: `memory/current_plan.md`
-- Relevant spec(s): {{relevant_specs}}
+## Контекст
+{{context}}
 
-## Objective
-{{objective}}
+## Входы
+{{inputs}}
 
-## Constraints
+## Ограничения
 {{constraints}}
 
 ## Expected output
 {{expected_output}}
 
-## Validation
-{{validation_steps}}
+## Acceptance criteria
+{{acceptance_criteria}}
+
+## Какие файлы можно менять
+{{allowed_files}}
