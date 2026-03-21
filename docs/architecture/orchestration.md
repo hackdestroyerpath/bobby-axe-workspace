@@ -6,19 +6,39 @@ Accepted.
 ## Context
 Pipeline Bobby Axe уже разделён на raw ingestion и curated analytics, а производные сущности должны детерминированно пересчитываться из raw-слоя. Для этого нужен формальный orchestration contract: какие именно события переводят данные между этапами, кто их публикует и кто их читает, как обеспечивается идемпотентность, какие SLA допустимы, и как система ведёт себя при retry, dead-letter, backfill и replay.
 
+Дополнительно система должна чётко разделять:
+- **analysis-only / preview artifacts** — ранние промежуточные артефакты после `Ben_Kim`;
+- **final user-facing report artifacts** — `report_job`, пользовательский PDF и сопутствующий package только после `Maffi` и `1$_Dollar_Bill`.
+
 Этот документ фиксирует минимально достаточную модель orchestration как для полноценной event-driven реализации, так и для fallback-режима без выделенного event bus.
 
 ## Scope
 Документ покрывает только pipeline переходов между следующими стадиями:
 
-1. ingest raw trade data;
-2. build `second_bars`;
-3. produce analysis output;
+0. ingest raw trade data;
+1. build `second_bars`;
+2. produce analysis-only output;
+3. optionally produce `analysis_preview`;
 4. produce grid proposals;
 5. produce capital allocation;
 6. produce final report/export metadata.
 
 Документ не навязывает конкретную технологию транспорта. Допустимы Kafka / Redpanda / NATS JetStream / SQS+SNS / Postgres queue table / файловый spool, если соблюдаются одинаковые контракты события.
+
+## Canonical stage order and artifact classes
+
+| Stage | Producer | Artifact / event | Class | Final? | May be sent to user? | Blocked when allocations are missing? |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0 | `Jack` / ingestion | raw + `second_bars` | Upstream operational | No | No | No |
+| 1 | `Ben_Kim` | `analysis_result` / `analysis_ready` | Intermediate analysis-only | No | No, not as a final report | No |
+| 2 | `Jusetta` (optional) | `analysis_preview` / `analysis_preview_ready` | Intermediate draft | No | Yes, only if explicitly labeled preview/draft | No |
+| 3 | `Maffi` | `grid_proposal` / `grid_ready` | Intermediate trading | No | No, not as a final report | No |
+| 4 | `1$_Dollar_Bill` | `capital_allocation` / `allocation_ready` | Final upstream control artifact | Yes, for orchestration | Not as a user PDF/report package | No |
+| 5 | `Jusetta` | `report_job` / `report_ready` | Final user-facing artifact | Yes | Yes | **Yes** |
+
+**Normative rule:** `analysis_preview` не является `report_job` и не должен использовать те же имена, статусы publish или каналы доставки, которые предназначены для финального отчёта.
+
+**Normative rule:** `report_job`, пользовательский PDF и любой финальный user-facing package запрещено публиковать, если не существует завершённого `allocation_ready` для того же `correlation_id`, окна и набора символов.
 
 ## Canonical event envelope
 Каждое событие должно иметь общий envelope независимо от транспорта.
@@ -81,18 +101,6 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 
 `raw_data_ingested:{source}:{symbol}:{window_start_utc}:{window_end_utc}:{payload_checksum}`
 
-**Repeated delivery policy.**
-
-- если consumer уже завершил обработку этого `idempotency_key`, событие подтверждается без повторного side effect;
-- если обработка ещё выполняется, дубликат не запускает второй concurrent rebuild того же окна;
-- если предыдущая попытка завершилась ошибкой, допускается повторный запуск строго для того же окна.
-
-**Stage timeout / SLA.**
-
-- publish timeout у ingestion producer: `<= 5s` после commit в raw layer;
-- end-to-end SLA до старта downstream обработки: `<= 30s` в realtime;
-- для backfill допустимо `<= 5m` до постановки в очередь.
-
 ### 2. `second_bars_ready`
 
 **Meaning.** Канонические секундные бары для окна полностью пересобраны и materialized в curated layer.
@@ -122,27 +130,16 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 
 `second_bars_ready:{symbol}:{window_start_utc}:{window_end_utc}:{build_version}`
 
-**Repeated delivery policy.**
-
-- consumer обязан проверить registry обработанных ключей;
-- если `build_version` не изменился и окно уже обработано, событие игнорируется как harmless duplicate;
-- если пришло то же окно, но с новым `build_version`, это не duplicate, а осознанный reprocess, который должен пройти downstream заново.
-
-**Stage timeout / SLA.**
-
-- processing timeout на rebuild окна до `15m`: `<= 60s`;
-- realtime SLA от `raw_data_ingested` до публикации `second_bars_ready`: `P95 <= 90s`, `P99 <= 180s`;
-- backfill SLA на одно окно: `<= 10m`.
-
 ### 3. `analysis_ready`
 
-**Meaning.** Аналитический слой для окна рассчитан и записан в curated tables / feature store.
+**Meaning.** Аналитический слой для окна рассчитан и записан в curated tables / feature store. Это analysis-only результат, ещё не финальный user-facing report.
 
 **Producer.** `analysis-engine`.
 
 **Consumers.**
 
 - `grid-engine` — основной потребитель;
+- `analysis-preview-builder` — опциональный потребитель раннего preview;
 - `model-monitor` / `pipeline-monitor`.
 
 **Required payload.**
@@ -161,19 +158,43 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 
 `analysis_ready:{symbol}:{window_start_utc}:{window_end_utc}:{analysis_set_id}:{feature_version}`
 
-**Repeated delivery policy.**
+### 4. `analysis_preview_ready`
 
-- duplicate delivery не должна пересоздавать второй набор analysis rows;
-- запись downstream делается через upsert/replace по `analysis_set_id` или эквивалентному business key;
-- если downstream cache уже содержит готовый analysis result, допускается fast-ack без пересчёта.
+**Meaning.** Опциональный ранний preview построен только на analysis-only результатах `Ben_Kim` и явно отделён от финального user-facing report.
 
-**Stage timeout / SLA.**
+**Producer.** `analysis-preview-builder` / `Jusetta-preview`.
 
-- timeout одного job: `<= 120s`;
-- realtime SLA от `second_bars_ready` до `analysis_ready`: `P95 <= 3m`, `P99 <= 5m`;
-- backfill SLA на окно: `<= 15m`.
+**Consumers.**
 
-### 4. `grid_ready`
+- `Bobby Axe` — контроль маркировки preview;
+- UI / API preview-channel;
+- `audit-log`.
+
+**Required payload.**
+
+| Field | Description |
+| --- | --- |
+| `symbol` | Канонический инструмент или `portfolio` для пакетного preview. |
+| `window_start_utc` | Начало окна анализа. |
+| `window_end_utc` | Конец окна анализа. |
+| `preview_id` | Стабильный идентификатор preview-артефакта. |
+| `preview_version` | Версия шаблона/схемы preview. |
+| `analysis_set_id` | Ссылка на upstream analysis-only result. |
+| `artifact_uri` | URI preview-файла или объекта. |
+| `generated_at_utc` | Время генерации. |
+| `preview_label` | Обязательная метка `preview` / `draft`. |
+
+**Idempotency key.**
+
+`analysis_preview_ready:{symbol}:{window_start_utc}:{window_end_utc}:{preview_id}:{preview_version}`
+
+**Gating rules.**
+
+- это промежуточный артефакт;
+- он может быть доставлен пользователю только через preview-channel и только с явной меткой draft/preview;
+- событие не разблокирует `report_ready` и не заменяет `allocation_ready`.
+
+### 5. `grid_ready`
 
 **Meaning.** Grid proposals для окна и symbol построены и готовы к аллокации капитала.
 
@@ -201,21 +222,9 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 
 `grid_ready:{symbol}:{window_start_utc}:{window_end_utc}:{grid_set_id}:{grid_version}`
 
-**Repeated delivery policy.**
+### 6. `allocation_ready`
 
-- дубликат не должен создавать вторую пачку grid proposals;
-- allocation step обязан использовать `grid_set_id` как business reference и отбрасывать вторую обработку того же набора;
-- если grid пересчитан новой версией, публикуется новый ключ и downstream считает это новым событием.
-
-**Stage timeout / SLA.**
-
-- timeout одного job: `<= 60s`;
-- realtime SLA от `analysis_ready` до `grid_ready`: `P95 <= 2m`, `P99 <= 4m`;
-- backfill SLA: `<= 10m`.
-
-### 5. `allocation_ready`
-
-**Meaning.** Капитал распределён по готовому grid set и сохранён как детерминированный allocation result.
+**Meaning.** Капитал распределён по готовому grid set и сохранён как детерминированный allocation result. Это обязательный upstream gate для финального `report_job`.
 
 **Producer.** `allocation-engine`.
 
@@ -242,21 +251,9 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 
 `allocation_ready:{symbol}:{window_start_utc}:{window_end_utc}:{allocation_set_id}:{allocation_version}:{capital_profile_id}`
 
-**Repeated delivery policy.**
+### 7. `report_ready`
 
-- report-builder обязан быть идемпотентным по `allocation_set_id`;
-- повторная доставка не инициирует второе резервирование капитала или повторную запись тех же allocation rows;
-- любые side effects вне БД выполняются только после проверки dedup registry/outbox.
-
-**Stage timeout / SLA.**
-
-- timeout одного job: `<= 60s`;
-- realtime SLA от `grid_ready` до `allocation_ready`: `P95 <= 2m`, `P99 <= 4m`;
-- backfill SLA: `<= 10m`.
-
-### 6. `report_ready`
-
-**Meaning.** Отчётный артефакт или metadata export для окна сформированы и доступны потребителям.
+**Meaning.** Финальный `report_job`, пользовательский PDF и metadata export для окна сформированы и доступны потребителям.
 
 **Producer.** `report-builder`.
 
@@ -275,7 +272,7 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 | `window_end_utc` | Конец окна. |
 | `report_id` | Стабильный идентификатор отчёта. |
 | `report_version` | Версия схемы отчёта / экспорта. |
-| `allocation_set_id` | Upstream allocation reference. |
+| `allocation_set_id` | Upstream allocation reference. Обязательное поле. |
 | `artifact_uri` | URI файла, записи или export object. |
 | `generated_at_utc` | Время генерации. |
 
@@ -283,18 +280,11 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 
 `report_ready:{symbol}:{window_start_utc}:{window_end_utc}:{report_id}:{report_version}`
 
-**Repeated delivery policy.**
+**Gating rules.**
 
-- повторная доставка не должна создавать duplicate report metadata;
-- если файл уже существует по `artifact_uri`, допустим verify-and-ack без повторной генерации;
-- если репорт пересобран новой версией или в новый URI, публикуется новый `idempotency_key`.
-
-**Stage timeout / SLA.**
-
-- timeout одного job: `<= 120s`;
-- realtime SLA от `allocation_ready` до `report_ready`: `P95 <= 3m`, `P99 <= 5m`;
-- полный realtime SLA цепочки `raw_data_ingested -> report_ready`: `P95 <= 15m`, `P99 <= 30m`;
-- backfill SLA: `<= 20m` на окно.
+- `report_ready` запрещено публиковать без валидного `allocation_set_id`;
+- если для окна нет `allocation_ready`, событие должно быть отклонено как business violation, а не выпускаться как partial success;
+- финальный user-facing PDF подпадает под те же ограничения, что и `report_ready`.
 
 ## Producer / consumer responsibility matrix
 
@@ -302,7 +292,8 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 | --- | --- | --- | --- |
 | `raw_data_ingested` | `raw-ingestion-service` | `second-bars-builder` | `pipeline-monitor`, `audit-log`, `backfill-coordinator` |
 | `second_bars_ready` | `second-bars-builder` | `analysis-engine` | `quality-checker`, `pipeline-monitor` |
-| `analysis_ready` | `analysis-engine` | `grid-engine` | `model-monitor`, `pipeline-monitor` |
+| `analysis_ready` | `analysis-engine` | `grid-engine` | `analysis-preview-builder`, `model-monitor`, `pipeline-monitor` |
+| `analysis_preview_ready` | `analysis-preview-builder` | preview UI / API | `Bobby Axe`, `audit-log`, `pipeline-monitor` |
 | `grid_ready` | `grid-engine` | `allocation-engine` | `approval-workflow`, `pipeline-monitor` |
 | `allocation_ready` | `allocation-engine` | `report-builder` | `execution-gateway`, `risk-monitor`, `pipeline-monitor` |
 | `report_ready` | `report-builder` | `report-distributor` / API / UI | `audit-log`, `pipeline-monitor` |
@@ -319,32 +310,7 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
    - **same key + same version** → harmless duplicate, ack without effect;
    - **same window + new version** → intentional reprocess, process again;
    - **same key + payload mismatch** → data contract violation, route to dead-letter и поднять alert.
-
-### Minimal processed-event registry
-
-Минимальная SQL-таблица registry:
-
-- `consumer_name`
-- `idempotency_key`
-- `event_name`
-- `event_version`
-- `payload_checksum`
-- `first_seen_at_utc`
-- `last_seen_at_utc`
-- `processing_status` (`processing`, `completed`, `failed`, `dead_lettered`)
-- `last_error`
-
-Уникальный ключ: `consumer_name + idempotency_key`.
-
-### What to do on redelivery
-
-При повторной доставке consumer действует так:
-
-1. вычисляет checksum payload и ищет запись по `consumer_name + idempotency_key`;
-2. если найдена запись со статусом `completed` и тем же checksum, делает `ack + no-op`;
-3. если запись в статусе `processing`, не запускает второй конкурентный job, а requeue/ack зависит от транспорта;
-4. если запись в статусе `failed`, может повторить обработку в пределах retry policy;
-5. если checksum отличается, переносит сообщение в dead-letter как конфликтующий duplicate.
+6. Для финального отчёта dedup должен дополнительно проверять, что `allocation_set_id` соответствует тому же `correlation_id` и окну.
 
 ## Timeouts, retries, and dead-letter policy
 
@@ -383,30 +349,8 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 - отсутствует обязательное поле события;
 - checksum conflict для одинакового `idempotency_key`;
 - нарушен invariant окна (`window_end_utc <= window_start_utc`);
-- бизнес-версия результата неизвестна системе и не поддерживается.
-
-### Dead-letter policy
-
-Для dead-letter должен существовать отдельный канал/таблица `pipeline_dead_letter` c полями:
-
-- `dead_lettered_at_utc`
-- `event_name`
-- `event_id`
-- `idempotency_key`
-- `consumer_name`
-- `payload`
-- `payload_checksum`
-- `failure_class`
-- `failure_reason`
-- `attempt_count`
-- `correlation_id`
-- `mode`
-
-Правила:
-
-- dead-letter событие не удаляется автоматически до ручного разбора;
-- для каждого dead-letter создаётся alert в monitoring;
-- replay из dead-letter допускается только отдельной операторской командой после устранения причины.
+- бизнес-версия результата неизвестна системе и не поддерживается;
+- попытка выпустить `report_ready` без `allocation_ready` для того же окна.
 
 ## Backfill and replay policy
 
@@ -423,30 +367,6 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 4. Каждый этап публикует те же canonical events, но с `mode = backfill` или `mode = replay`.
 5. Потребители не должны иметь отдельную бизнес-логику для backfill/replay кроме отличий по SLA и rate limiting.
 
-### Backfill procedure
-
-1. Оператор или scheduler создаёт `backfill_job` c диапазоном `from_utc` / `to_utc`, списком `symbols`, размером окна и целевыми этапами.
-2. `backfill-coordinator` строит очередь окон: например `BTCUSDT` × каждый `1h` bucket.
-3. Для каждого окна coordinator инициирует ingest/rebuild начиная с самого раннего требуемого этапа:
-   - если raw уже присутствует и валиден, можно стартовать с `raw_data_ingested` synthetic event;
-   - если raw отсутствует, сначала загружается raw batch.
-4. Каждый downstream этап пишет результат через overwrite/upsert на своё окно.
-5. После завершения диапазона фиксируется `job_manifest` с количеством окон, успехов, ошибок и dead-letter записей.
-
-### Replay procedure
-
-Replay используется в двух случаях:
-
-1. изменилась логика (`build_version`, `feature_version`, `grid_version`, `allocation_version`, `report_version`);
-2. upstream данные были исправлены и downstream нужно пересчитать.
-
-Правила replay:
-
-- replay обязан стартовать с **самого раннего повреждённого или изменённого этапа**;
-- для replay публикуются новые idempotency keys за счёт новой версии результата или нового job reference;
-- старые результаты не должны silently смешиваться с новыми: применяется либо versioned storage, либо атомарный replace результата окна;
-- по завершении replay рекомендуется верификация row counts / checksums для диапазона.
-
 ### Safe ordering for historical ranges
 
 Для диапазона `[from_utc, to_utc)` порядок должен быть таким:
@@ -455,11 +375,13 @@ Replay используется в двух случаях:
 2. `raw_data_ingested`;
 3. rebuild `second_bars` и публикация `second_bars_ready`;
 4. recompute analysis и публикация `analysis_ready`;
-5. recompute grid и публикация `grid_ready`;
-6. recompute allocation и публикация `allocation_ready`;
-7. recompute reports и публикация `report_ready`.
+5. опциональный `analysis_preview_ready`, если нужен ранний черновик;
+6. recompute grid и публикация `grid_ready`;
+7. recompute allocation и публикация `allocation_ready`;
+8. recompute final reports и публикация `report_ready`.
 
 Нельзя запускать downstream replay до подтверждения готовности upstream окна для того же `symbol` и времени.
+Нельзя запускать `report_ready` без подтверждённого `allocation_ready`, даже если `analysis_preview_ready` уже существует.
 
 ## Minimal fallback mode without event bus
 
@@ -499,6 +421,7 @@ Replay используется в двух случаях:
 3. Dedup делается по тем же `idempotency_key` + registry.
 4. Retry реализуется через увеличение `attempt_count` и перенос `visible_after_utc` вперёд.
 5. После достижения лимита попыток строка переводится в `dead_lettered` и копируется в `pipeline_dead_letter`.
+6. Для `report_ready` consumer дополнительно валидирует наличие `allocation_ready` до смены статуса на `completed`.
 
 ### Option B: File artifact spool
 
@@ -518,28 +441,4 @@ Replay используется в двух случаях:
 3. Duplicate detection выполняется по имени файла и локальному/SQL registry обработанных ключей.
 4. Retry реализуется обратным перемещением в `pending` с записью `attempt_count` в JSON metadata.
 5. Dead-letter — перемещение в `dead-letter` после превышения лимита попыток.
-
-### Fallback limitations
-
-Fallback-режим допустим только как минимальное решение и имеет ограничения:
-
-- ниже throughput и выше latency;
-- сложнее гарантировать ordering между несколькими инстансами;
-- выше риск ручных операционных ошибок;
-- наблюдаемость и replay менее удобны, чем у полноценного event bus.
-
-Поэтому fallback должен сохранять те же event names, envelope и idempotency semantics, чтобы поздний переход на шину не требовал переписывания бизнес-логики этапов.
-
-## Operational requirements
-
-Минимально обязательны следующие метрики и алерты:
-
-- lag от публикации события до начала обработки;
-- lag от начала обработки до completion;
-- количество duplicate deliveries;
-- retry count по этапам;
-- dead-letter count по этапам и по `symbol`;
-- backfill/replay progress по окнам;
-- full pipeline latency от `raw_data_ingested` до `report_ready`.
-
-Любой этап, превышающий свой `P99` SLA более чем на 2 последовательных окна, должен поднимать alert.
+6. Preview- и final-report артефакты должны храниться в разных префиксах, чтобы исключить смешение `analysis_preview` и `report_job`.
