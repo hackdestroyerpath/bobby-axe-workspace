@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "contracts/schemas/snapshot_run.schema.json",
+  "title": "snapshot_run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_type",
+    "run_id",
+    "correlation_id",
+    "trigger_type",
+    "triggered_by",
+    "requested_at_utc",
+    "as_of_utc",
+    "frozen_universe",
+    "status"
+  ],
+  "properties": {
+    "event_type": { "const": "snapshot_run" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "correlation_id": { "type": "string", "minLength": 1 },
+    "trigger_type": { "type": "string", "enum": ["user_realtime_button"] },
+    "triggered_by": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_type", "actor_id"],
+      "properties": {
+        "actor_type": { "type": "string", "enum": ["user", "system"] },
+        "actor_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requested_at_utc": { "type": "string", "format": "date-time" },
+    "as_of_utc": { "type": "string", "format": "date-time" },
+    "frozen_universe": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z0-9_-]+$"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "completed_with_errors",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "report_required": { "type": "boolean", "default": true },
+    "report_job_id": { "type": "string", "minLength": 1 },
+    "completed_at_utc": { "type": "string", "format": "date-time" },
+    "failure_reason": { "type": "string", "minLength": 1 },
+    "stage_reuse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "market_data_reused": { "type": "boolean" },
+        "analysis_reused_within_run": { "type": "boolean" },
+        "grid_recomputed": { "type": "boolean" },
+        "allocation_recomputed": { "type": "boolean" },
+        "report_recomputed": { "type": "boolean" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["completed", "completed_with_errors", "failed", "cancelled"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["completed_at_utc"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "const": "completed" }, "report_required": { "const": true } },
+        "required": ["status", "report_required"]
+      },
+      "then": {
+        "required": ["report_job_id"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "enum": ["failed", "cancelled"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["failure_reason"]
+      }
+    }
+  ]
+}

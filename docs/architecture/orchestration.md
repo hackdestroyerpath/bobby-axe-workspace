@@ -66,6 +66,67 @@ Pipeline Bobby Axe уже разделён на raw ingestion и curated analyti
 - downstream-потребитель обязан пересобирать свой результат целиком для указанного окна, а не пытаться «допатчить» отдельные строки без переагрегации;
 - повторная публикация того же окна с тем же `idempotency_key` считается нормальной и должна быть безопасной.
 
+
+## Snapshot-run orchestration entity for user realtime launch
+
+Для пользовательского realtime-запуска по кнопке вводится отдельная orchestration-сущность `snapshot_run`. Она является **корневым run-record** и создаётся **до** публикации любых stage events. Все downstream-события, артефакты и решения обязаны ссылаться на один и тот же `snapshot_run.run_id` / `correlation_id`.
+
+### Кто создаёт run
+
+- Источник запуска — UI/API-кнопка `Run snapshot` или эквивалентный ручной realtime-trigger.
+- Технически `snapshot_run` создаёт **orchestration control plane под управлением `Bobby Axe`**, а не `Jack`, `Ben_Kim`, `Maffi`, `1$_Dollar_Bill` или `Jusetta`.
+- Создание `snapshot_run` — это отдельная транзакция в orchestration-store: сначала фиксируется run, потом публикуется команда на Stage 0/Stage 1.
+- Если пользователь нажал кнопку повторно, должен создаваться **новый** `snapshot_run`, а не переиспользоваться старый run со сменой payload.
+
+### Как фиксируется `correlation_id`
+
+- `correlation_id` присваивается **в момент создания `snapshot_run`** и далее никогда не меняется.
+- Рекомендуемый формат: UUIDv7/ULID или иной globally unique sortable id.
+- `snapshot_run.correlation_id` = envelope `correlation_id` для всех downstream events этого запуска.
+- Любой stage artifact без `correlation_id`, не совпадающего с `snapshot_run`, должен считаться invalid input для данного run.
+- Повторная доставка, retry и replay в рамках одного snapshot-run сохраняют тот же `correlation_id`; новый пользовательский клик всегда получает новый `correlation_id`.
+
+### Как вычисляется frozen universe тикеров
+
+- В момент создания `snapshot_run` orchestration layer делает **однократный снимок universe** тикеров, допущенных к realtime-run.
+- Источник истины для universe — curated/operational listing `Jack`, ограниченный фьючерсными парами USDC и дополнительными фильтрами доступности/торгуемости, действующими на момент запуска.
+- Результат сохраняется в `snapshot_run.frozen_universe` как **упорядоченный список symbol**.
+- После фиксации `frozen_universe` список тикеров для данного run не может расширяться или сужаться, даже если `Jack` в процессе добавил/удалил инструменты или временно изменился availability status.
+- Если по отдельному тикеру далее обнаружится ошибка данных, тикер получает terminal status внутри run, но **не исчезает** из frozen universe.
+
+### Какое `as_of_utc` считается временем среза
+
+- `snapshot_run.as_of_utc` — это **время среза запуска**, определяемое orchestration layer в момент принятия пользовательского запроса.
+- Для realtime-run каноническое правило: `as_of_utc` равно **максимальному UTC timestamp, для которого `Jack` гарантировал fully materialized second bars для всего frozen universe** на момент старта run.
+- Если пользователь нажал кнопку в `T_click`, но не все тикеры materialized до `T_click`, orchestration должен выбрать последний общий безопасный срез `T_safe <= T_click` и записать его как `as_of_utc`.
+- Все окна чтения downstream-этапов должны быть семантически интерпретированы как данные, доступные **не позже `as_of_utc`**.
+- Для детерминизма запрещено менять `as_of_utc` после старта run, даже если во время расчёта появились более свежие данные.
+
+### Какие окна читают `Ben_Kim`, `Maffi`, `Dollar_Bill`
+
+- `Ben_Kim` читает только run-scoped market data по тикерам из `frozen_universe`, где верхняя граница всех входных окон не превышает `snapshot_run.as_of_utc`. Для каждого symbol обязательны согласованные срезы `1m`, `5m`, `60m`, построенные из одного и того же frozen market snapshot.
+- `Maffi` не перечитывает «живой» universe. Он читает только usable `analysis_result` текущего `correlation_id` и строит `grid_proposal` **только для 5m** по каждому symbol из `frozen_universe`.
+- `1$_Dollar_Bill` читает только `grid_proposal` и требуемые analysis summaries текущего `correlation_id` **по тому же frozen universe, который был зафиксирован в начале snapshot-run**.
+- Нормативное правило: `1$_Dollar_Bill` запрещено пересобирать universe по текущему состоянию базы, листинга или availability-check во время расчёта. Иначе сумма `100%` станет недетерминированной при изменении списка тикеров по ходу run.
+
+### Что считается завершением run
+
+`snapshot_run` считается завершённым только при наступлении terminal state:
+
+- `completed` — для **каждого** symbol из `frozen_universe` завершены обязательные этапы `Ben_Kim -> Maffi -> 1$_Dollar_Bill`, сохранён детерминированный allocation batch с суммой `100%` по frozen universe, а если запуск требовал пользовательский package, то `Jusetta` выпустила `report_job`/PDF/manifest для того же `correlation_id`, `as_of_utc` и frozen universe.
+- `completed_with_errors` — все symbol из frozen universe доведены до terminal outcome, но часть тикеров получила допустимый business-rejection/error, зафиксированный Bobby Axe, из-за чего финальный package либо не выпускается, либо маркируется как blocked/revision_required.
+- `failed` / `cancelled` — run остановлен оператором или завершён без возможности получить terminal outputs для полного frozen universe.
+
+Run нельзя считать завершённым только потому, что обработана «актуальная на сейчас» подвыборка тикеров. Критерий завершения всегда оценивается относительно frozen universe, записанного при старте.
+
+### Какие этапы переиспользуют данные, а какие обязаны пересчитаться заново
+
+- **Переиспользовать можно** только immutable upstream data, уже зафиксированные на `snapshot_run.as_of_utc`: raw trades, materialized `second_bars`, а также metadata самого `snapshot_run` (`correlation_id`, `as_of_utc`, `frozen_universe`).
+- `Ben_Kim` может переиспользовать только этот frozen market snapshot; при retry допускается не перечитывать данные позже `as_of_utc`, но сам analysis result должен быть либо подтверждён как уже готовый именно для этого `correlation_id`, либо пересчитан как run-scoped артефакт.
+- `Maffi` обязан пересчитывать `grid_proposal` заново для каждого нового `snapshot_run`, даже если входные рыночные данные совпали с предыдущим запуском; допускается reuse только run-scoped `analysis_result` того же `correlation_id`.
+- `1$_Dollar_Bill` обязан пересчитывать аллокации заново для каждого нового `snapshot_run`, потому что итоговый вектор долей является функцией полного frozen universe и run-scoped grid batch. Нельзя копировать allocation batch из другого `correlation_id`.
+- `Jusetta` может переиспользовать уже сохранённые run-scoped outputs `Ben_Kim`/`Maffi`/`1$_Dollar_Bill`, но финальный `report_job`, manifest и package должны генерироваться заново для конкретного `snapshot_run`.
+
 ## Event catalog
 
 ### 1. `raw_data_ingested`

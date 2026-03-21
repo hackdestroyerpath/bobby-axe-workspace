@@ -124,6 +124,23 @@
 
 ---
 
+
+## 3A. Realtime snapshot-run по кнопке
+
+Для пользовательского realtime-запуска по кнопке Bobby Axe обязан завести отдельную orchestration-сущность `snapshot_run` **до** старта `Jack`, `Ben_Kim`, `Maffi`, `1$_Dollar_Bill` и `Jusetta`.
+
+### Обязательные правила snapshot-run
+- `snapshot_run` создаётся orchestration control plane под управлением `Bobby Axe`; пользователь или UI только инициируют запрос, но не создают run напрямую.
+- `correlation_id` фиксируется при создании `snapshot_run` и затем используется всеми stage-артефактами этого запуска без изменений.
+- В момент старта фиксируется `frozen_universe` — упорядоченный список тикеров, доступных для realtime-run на стороне `Jack`; дальше список тикеров внутри run менять нельзя.
+- `as_of_utc` фиксируется как последний общий безопасный UTC-срез, для которого `Jack` уже materialized данные по всему frozen universe; новые данные, пришедшие после этого времени, в текущий run не включаются.
+- `Ben_Kim` читает только run-scoped frozen market snapshot до `as_of_utc` и строит заключения `1m/5m/60m` по тикерам из frozen universe.
+- `Maffi` читает только usable `analysis_result` текущего `correlation_id` и строит `grid_proposal` только для `5m` по frozen universe.
+- `1$_Dollar_Bill` читает только frozen universe, зафиксированный в начале snapshot-run, плюс run-scoped результаты `Ben_Kim` и `Maffi`; ему запрещено пересобирать universe по «текущему состоянию» базы во время расчёта.
+- Сумма аллокаций `1$_Dollar_Bill` должна быть `100%` **по frozen universe snapshot-run**, иначе результат недетерминирован и этап не принимается.
+- Run считается завершённым только когда весь frozen universe дошёл до terminal outcome, а для publishable-выпуска дополнительно готов `report_job` того же `correlation_id`, `as_of_utc` и frozen universe.
+- Переиспользовать между повторными попытками можно raw/curated market data на фиксированном `as_of_utc`; `Maffi`, `1$_Dollar_Bill` и финальный `report_job` обязаны пересчитываться заново для каждого нового пользовательского snapshot-run.
+
 ## 4. Канонические типы артефактов
 
 | Артефакт | Этап | Тип | Финальный? | Можно отправить пользователю? | Блокируется без аллокаций? |
