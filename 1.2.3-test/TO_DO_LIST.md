@@ -1,397 +1,567 @@
 # TO_DO_LIST.md
 
-Ниже — полный структурированный список того, что осталось доделать по Bobby. Идея простая: ты берешь кодовую доработку на себя, а потом Bobby подтягивает изменения и доводит финальную версию уже поверх твоего апдейта.
+This file is a full handoff plan for the remaining Bobby work.
+
+Goal: you take over the coding work from this point, finish the implementation, and then Bobby will pull the updated code and continue with final integration, stabilization, and validation.
+
+The document is intentionally detailed and code-oriented.
 
 ---
 
-# 1. Главная цель
+# 1. Primary objective
 
-Довести Bobby до состояния:
-- paper runtime работает автономно
-- стратегия сама выбирает направление сетки
-- используются Binance USDS-M ограничения как source of truth
-- есть корректный state/risk contract
-- можно безопасно перейти к testnet/live-ready архитектуре
+Bring Bobby to the following state:
+- autonomous paper-trading runtime
+- Binance USDS-M market-data driven operation
+- strategy chooses grid direction by itself
+- risk/state transitions are consistent
+- Binance symbol constraints are used as source of truth
+- future path to testnet/live is clean and technically safe
 
-Важно:
-- текущий фокус — **paper-first**, не live-first
-- live-деньги пока не включать
-- все решения должны быть совместимы с будущим Binance execution path
+Important:
+- current target is **paper-first**, not live-first
+- do not enable real-money execution yet
+- any implementation should stay compatible with future Binance execution integration
 
 ---
 
-# 2. Что уже есть
+# 2. What already exists
 
-Сейчас уже собрано:
-- grid decision core
-- paper simulator
-- multi-symbol scan
-- summary output
-- readiness output
-- heartbeat formatter
-- paper cycle
-- export workflow
-- частичная Binance integration база (`exchangeInfo`, symbol filters)
-- directional TP/SL fields
+The following components already exist and should be treated as a base, not rewritten from scratch:
+
+## Strategy / execution base
+- grid strategy core
+- regime classification (`LONG_GRID`, `SHORT_GRID`, `NEUTRAL_GRID`, `NO_TRADE`)
+- paper execution simulator
+- inventory tracking
+- realized / unrealized PnL tracking
+- invalidation handling
+- basic TP/SL fields in grid plan
 - neutral-grid removal basis
 
-Это не нужно переписывать с нуля. Это нужно **доделать и стабилизировать**.
+## Runtime / orchestration base
+- multi-symbol scan
+- runner summary
+- readiness output
+- heartbeat formatter
+- one-shot paper cycle
+- basic repeat-loop foundation
+
+## Binance integration base
+- Binance notes collected
+- exchangeInfo-based symbol constraint path partially wired
+- symbol filter loading path exists
+
+## Workflow / reporting base
+- roadmap
+- status files
+- memory files
+- export package
+- handoff package in `1.2.3-test/`
+
+You do **not** need to redesign the system from zero.
+You need to finish, harden, and connect the remaining moving parts.
 
 ---
 
-# 3. Что нужно сделать в первую очередь
+# 3. Highest-priority implementation items
 
-## 3.1. Повторяющийся runtime loop
+These are the highest-value remaining code tasks.
 
-Нужно сделать нормальный repeating loop runner, который не зависит от ручной подачи `multi_snapshot.json`.
+## 3.1. Build a real repeating paper runtime loop
 
-### Что должно быть:
-1. Получение market data по символам автоматически.
-2. Получение:
-   - candles
-   - bid/ask
-   - mark price
-3. Запуск цикла по интервалу.
-4. Запись state после каждого цикла.
-5. Запись короткого loop-status.
-6. Возможность безопасно остановить loop.
+Current state:
+- one-shot paper cycle exists
+- repeating loop foundation exists or is partially scaffolded
+- runtime still needs to become truly autonomous
 
-### Что желательно реализовать:
-- отдельный runtime mode:
-  - `paper_loop.py --live`
-  - или аналогичный стабильный режим
-- файл статуса, например:
-  - `loop_status.json`
-- файл stop-сигнала, например:
-  - `STOP_BOBBY`
-  - либо `stop.flag`
+### Required result
+A process that can run repeatedly without manually feeding `multi_snapshot.json`.
 
-### Что loop должен сохранять:
-- last_cycle_time
-- last_summary
-- last_readiness
-- last_error
-- current_mode
-- iteration_count
+### It must do the following every cycle
+1. fetch market data
+2. build normalized symbol snapshots
+3. run the Bobby agent evaluation
+4. simulate paper behavior
+5. produce summary
+6. produce readiness output
+7. persist state
+8. persist last runtime status
+9. wait until next cycle
 
----
+### Files to review/update
+- `paper_loop.py`
+- `paper_cycle.py`
+- `runner.py`
+- `agent.py`
+- `market_data.py`
+- `binance_exchange.py`
 
-## 3.2. Реальный market-data path через Binance
+### Suggested implementation details
+- add a loop controller class or clear top-level loop routine
+- allow parameters such as:
+  - loop interval
+  - symbol list override
+  - max iterations
+  - live mode / sample mode
+- make sure state is saved after every cycle, including on exceptions where possible
+- write a runtime status file after each cycle
 
-Нужно, чтобы loop не жил на sample snapshot'ах.
-
-### Сделать:
-1. Нормальный market data adapter для Binance USDS-M.
-2. Унифицированный сбор snapshot для каждого символа.
-3. Источник данных должен включать:
-   - свечи
-   - bid
-   - ask
-   - last price
-   - mark price
-4. Результат должен приходить в существующий формат, совместимый с `agent.py`.
-
-### Важно:
-- не ломать текущий contract input payload
-- лучше сделать adapter, который готовит данные в уже существующую структуру
+### Suggested runtime outputs
+- `loop_status.json`
+- `loop_last_summary.txt`
+- optional `loop_last_error.txt`
 
 ---
 
-# 4. Стратегия: что именно доработать
+## 3.2. Connect the loop to real Binance market data
 
-## 4.1. Направление — это главный edge
+Current state:
+- the strategy can run on sample snapshots
+- Binance integration notes and exchange filter logic exist
+- real market-data loop must become the normal path
 
-Алгоритм должен максимально ясно отвечать на вопрос:
-- ставить `LONG_GRID`
-- ставить `SHORT_GRID`
-- ставить `NEUTRAL_GRID`
-- не ставить ничего
+### Required result
+The runtime must build snapshots from real Binance USDS-M data.
 
-### Цель:
-не просто “сетка всегда”, а **правильный выбор направления**.
+### Snapshot must include
+- symbol
+- candles
+- bid
+- ask
+- last price
+- mark price
 
-### Нужно проверить и усилить:
-- trend detection
-- pullback logic
-- rejection bad structure
-- edge threshold before deployment
+### Suggested source split
+Use Binance endpoints/helpers to gather:
+- klines / candles
+- order-book top-of-book or best bid/ask
+- mark price
+- exchange info / symbol filters
 
----
+### Design rule
+Do not break the existing normalized payload contract used by `agent.py`.
+Prefer adding an adapter layer that converts Binance data into the already supported snapshot structure.
 
-## 4.2. Directional grids
-
-Для directional grid логика должна быть такой:
-- выбрал направление
-- поставил grid
-- поставил `TP`
-- поставил `SL`
-- дальше grid не надо вручную сопровождать
-
-### Нужно проверить кодово:
-1. TP действительно закрывает/снимает directional grid.
-2. SL действительно закрывает/снимает directional grid.
-3. После TP/SL корректно очищается:
-   - active grid
-   - inventory
-   - runner summary
-   - state
-4. После завершения directional grid можно корректно re-arm на том же символе.
+### Files to review/update
+- `binance_exchange.py`
+- `market_data.py`
+- `paper_loop.py`
+- possibly `paper_cycle.py`
 
 ---
 
-## 4.3. Neutral grids
+# 4. Strategy implementation work
 
-Neutral grids использовать осторожно.
+This is where the operator voice-spec must be fully reflected in code.
 
-### Нужно сделать:
-1. Явную политику снятия neutral grid.
-2. Не позволять neutral grid жить бесконечно.
-3. Удалять neutral grid:
-   - по числу баров
-   - по уходу цены за допустимый диапазон
-   - по смене структуры рынка
-4. После снятия neutral grid — чистить state.
+## 4.1. Direction selection is the main edge
 
-### Критично:
-neutral grid нельзя оставлять “забытой”.
+The strategy must primarily answer:
+- should a long grid be deployed?
+- should a short grid be deployed?
+- should a neutral grid be deployed?
+- should nothing be deployed?
 
----
+### Goal
+Do not behave like “always place some grid”.
+Behave like “deploy only when direction/regime quality is good enough”.
 
-## 4.4. Количество уровней сетки
+### Review and improve
+- trend detection quality
+- pullback confirmation for directional grids
+- rejection of bad structures
+- threshold for acceptable edge
+- market-regime blocker reasons
 
-Оператор зафиксировал логику:
-- нормальный рабочий диапазон: **1–5 уровней**
-- абсолютный потолок: **7**
-
-### Нужно сделать:
-1. Убедиться, что стратегия по умолчанию живет в 1–5.
-2. Проверить, где код может случайно раздувать количество уровней.
-3. Не строить grid, если economics makes no sense.
-4. Если economics не позволяет 3–5 уровней, алгоритм должен:
-   - либо уменьшить уровни
-   - либо пропустить символ
-   - либо явно зафиксировать blocker reason
+### Files to review/update
+- `grid_strategy.py`
+- possibly `risk.py`
 
 ---
 
-# 5. Economics / Symbol policy
+## 4.2. Directional grid behavior
 
-Это сейчас один из главных реальных узких мест.
+Directional grids should behave like this:
+1. choose direction
+2. deploy grid
+3. attach take-profit
+4. attach stop-loss
+5. let it resolve without manual babysitting
 
-## 5.1. Проблема
+### Required validation
+Make sure TP/SL are not just calculated but actually respected by the simulator/runtime.
 
-При депозите около `30 USD` некоторые символы, особенно `BTCUSDC`, могут не проходить по экономике:
-- min notional
-- step size
-- число уровней
-- доступный notional under leverage/risk limits
+### Must be true after a directional exit
+After TP or SL:
+- active grid is removed or cleared correctly
+- inventory is updated correctly
+- state is consistent
+- runner summary is correct
+- readiness output is correct
+- the same symbol can re-arm later if a new valid setup appears
 
-### Значит нужно сделать явную политику:
-не “попробовали — не получилось”, а **понятное решение в коде**.
+### Files to review/update
+- `risk.py`
+- `simulator.py`
+- `agent.py`
+- `runner.py`
+- tests in `test_simulator.py`
 
 ---
 
-## 5.2. Что нужно реализовать
+## 4.3. Neutral grid policy
 
-### Для каждого символа алгоритм должен уметь определить:
-1. Можно ли строить сетку вообще.
-2. Сколько уровней реально допустимо.
-3. Какой минимальный notional нужен на уровень.
-4. Что является blocker:
-   - exchange filters
-   - account economics
-   - risk constraints
-   - regime mismatch
+Neutral grids are allowed only with caution.
+They cannot stay open indefinitely.
 
-### Если символ не проходит:
-алгоритм должен выбрать одно из действий:
-- `skip_symbol`
-- `reduce_levels`
-- `reduce_allocation`
-- `prefer_other_symbol`
+### Required result
+A strict and explicit neutral-grid removal policy.
 
-### Особо по BTCUSDC:
-нужно явно решить в коде:
-- когда BTCUSDC торгуется
-- когда пропускается
-- когда он доступен только при особой экономике
+### Neutral grid should be removed if
+- max holding bars reached
+- price deviates too far from the neutral range
+- structure no longer matches neutral assumptions
+- another explicit invalidation condition is hit
+
+### Must be true after removal
+- no stale active grid remains
+- no stale `active_grids` entry remains
+- no stale readiness/summarization remains
+- inventory/state is correct
+
+### Files to review/update
+- `simulator.py`
+- `agent.py`
+- `grid_strategy.py`
+- tests
+
+---
+
+## 4.4. Grid levels policy
+
+Operator guidance:
+- normal operating range: **1 to 5 levels**
+- hard cap: **7 levels**
+- strategy should prefer small, tight, frequent deployments
+
+### Required result
+A grid-level policy that is both strategic and economically realistic.
+
+### Strategy requirements
+- default should live in 1..5
+- neutral grids may use fewer levels than directional setups if needed
+- never silently exceed the hard cap
+- never deploy economically absurd grids just to satisfy a setup signal
+
+### If economics does not support the requested level count
+The system should explicitly choose one of the following actions:
+- reduce levels
+- skip the symbol
+- reallocate notional
+- prefer another symbol
+
+### Files to review/update
+- `config.json`
+- `grid_strategy.py`
+- `risk.py`
+
+---
+
+# 5. Economics policy under a small account
+
+This is one of the most important remaining realities.
+
+Current problem:
+- deposit is small (`~30 USD` reference)
+- some symbols, especially BTCUSDC, may become economically infeasible under exchange filters + notional + levels + risk logic
+
+This must become explicit code behavior, not accidental behavior.
+
+## 5.1. Implement an economics decision layer
+
+For each symbol, Bobby should be able to answer:
+1. is a grid feasible at all?
+2. how many levels are feasible?
+3. what minimum notional per level is required?
+4. what is the blocker type?
+
+### Recommended blocker categories
+- exchange filters
+- account economics
+- risk constraints
+- market regime
+- spread/ATR issues
+
+### Required result
+The code should classify infeasibility clearly and route it into summary/readiness/state.
+
+---
+
+## 5.2. Explicit BTCUSDC policy
+
+Current issue:
+- BTCUSDC can fail economically depending on symbol filters, notional, and level count
+
+### You need to implement an explicit policy
+For BTCUSDC, decide in code:
+- when it is tradable
+- when it must be skipped
+- whether it should only trade in some regimes
+- whether it should only trade at lower level counts
+- whether it should only trade when economics supports it after filter validation
+
+### Important
+Do not leave this as accidental behavior.
+It should be an explicit policy or decision path.
 
 ---
 
 ## 5.3. ExchangeInfo final binding
 
-Нужно окончательно закрепить использование Binance `exchangeInfo`.
+Binance `exchangeInfo` must become the final constraint authority.
 
-### Проверить и довести:
-- `tickSize`
-- `stepSize`
-- `minNotional`
-- `orderTypes`
-- `timeInForce`
-- актуальные symbol filters
+### Make sure the runtime uses
+- `PRICE_FILTER.tickSize`
+- `LOT_SIZE.stepSize`
+- `MIN_NOTIONAL.notional`
+- supported `orderTypes`
+- supported `timeInForce`
 
-### Важно:
-- не использовать hardcoded `pricePrecision` как `tickSize`
-- не использовать hardcoded `quantityPrecision` как `stepSize`
-- использовать live symbol filters как source of truth
+### Make sure the runtime does NOT use
+- `pricePrecision` as tick size
+- `quantityPrecision` as step size
+
+### Required result
+If Binance changes symbol constraints, Bobby should adapt through `exchangeInfo`, not stale hardcoded values.
+
+### Files to review/update
+- `binance_exchange.py`
+- `risk.py`
+- `agent.py`
+- possibly `config.json`
 
 ---
 
-# 6. Risk / state contract
+# 6. Risk/state contract hardening
 
-Это обязательно надо дочистить, иначе runtime будет врать.
+This is mandatory for correctness.
+If this layer is weak, the runtime will lie about its state.
 
-## 6.1. Что должно быть гарантировано
-
-После каждого из событий состояние должно быть строго корректным:
+## 6.1. Events that must cleanly update state
+You need strict state correctness after each of these:
 - invalidation
-- TP exit
-- SL exit
-- neutral removal
+- directional take-profit exit
+- directional stop-loss exit
+- neutral-grid removal
 - risk lock
-- re-arm after full exit
+- full close followed by later re-arm
 
-## 6.2. Что нужно проверить
+## 6.2. What must be consistent after each event
+- `active_grid`
+- `active_grids`
+- `paper.inventory`
+- `daily_pnl_usd`
+- `loss_streak`
+- `open_positions`
+- runner summary
+- readiness output
+- symbol decision state
 
-### После invalidation:
-- active grid cleared
-- inventory cleaned if required
-- runner summary updated
+## 6.3. Specific checks
+
+### After invalidation
+- active grid removed
+- inventory flattened if required
+- summary updated
 - readiness updated
 
-### После TP:
-- state consistent
+### After TP
+- realized PnL updated
 - grid removed
 - inventory consistent
-- realized pnl updated
+- no stale active state remains
 
-### После SL:
-- state consistent
+### After SL
+- realized PnL updated
 - loss streak updated
 - lock logic re-evaluated
+- no stale active state remains
 
-### После neutral removal:
-- neutral grid not left in active state
-- no stale active_grids record
-- no stale summary
+### After neutral removal
+- neutral grid fully removed
+- no stale active grid pointer
+- no stale summary entry
 
-### После lock:
-- runner summary must reflect lock
-- no stale deployment recommendation
+### After lock
+- lock reflected in state
+- lock reflected in summary
+- no deployment recommendation left active
 
 ---
 
-## 6.3. Тесты
+# 7. Tests to add or expand
 
-Нужно добавить/расширить тесты минимум на:
+You should extend the tests to cover the missing state-contract scenarios.
+
+## Required tests
 1. invalidation -> clear state
-2. TP -> clear state
-3. SL -> clear state
-4. neutral removal -> clear state
-5. lock -> summary + state contract
-6. same-symbol re-arm after prior full close
+2. TP exit -> clear state
+3. SL exit -> clear state
+4. neutral-grid removal -> clear state
+5. lock -> summary/readiness correctness
+6. same-symbol re-arm after full prior close
+7. economics blocker classification
+8. symbol-specific policy behavior for BTCUSDC
+
+## Recommended style
+Keep the tests lightweight and runnable with the existing direct `python3 test_simulator.py` style if needed.
+Do not assume pytest exists unless you add it intentionally.
+
+### Files to review/update
+- `test_simulator.py`
+- optionally split into multiple test files if you prefer
 
 ---
 
-# 7. Paper runtime stabilization
+# 8. Paper runtime stabilization
 
-Когда loop будет собран, нужно не просто один раз запустить, а проверить серией прогонов.
+Once the repeating loop is working, do not stop at “it runs once”.
+The runtime needs repeated-cycle validation.
 
-## Что проверить:
-1. state drift
-2. stale grids
-3. wrong inventory carry
-4. wrong symbol carry
-5. false locks
-6. wrong readiness
-7. summary consistency
-8. repeated-cycle stability
+## Run repeated cycles and check for
+- state drift
+- stale grids
+- wrong inventory carry
+- wrong symbol carry
+- false locks
+- incorrect readiness
+- incorrect summaries
+- failure to recover after exits
 
-### Практически:
-сделать серию repeated runs и логировать:
+## Practical validation idea
+Run multiple cycles in sequence and log:
 - cycle result
-- summary
-- readiness
+- symbol decisions
+- summary output
+- readiness output
 - state changes
-- detected blockers
+- blocker classification
+
+### Goal
+The runtime should remain coherent across repeated cycles, not only one-shot runs.
 
 ---
 
-# 8. Что можно сделать архитектурно аккуратно
+# 9. Suggested clean file responsibilities
 
-Если хочешь ускорить и не ломать код:
+If you want to keep the code maintainable, use the following responsibility split.
 
-## Рекомендуемая структура
-- `binance_exchange.py` — live exchange info + market data helpers
-- `market_data.py` — normalized snapshot structures
-- `agent.py` — evaluation orchestration
-- `risk.py` — sizing / filters / economics
-- `grid_strategy.py` — regime + deployment decision
-- `simulator.py` — fill simulation / tp / sl / neutral removal
-- `runner.py` — scan + summary + readiness
-- `paper_cycle.py` — one-shot paper cycle
-- `paper_loop.py` — repeating runtime loop
+## Suggested structure
+- `binance_exchange.py`
+  - Binance exchange info loading
+  - Binance market-data access helpers
+  - filter parsing / normalization
 
-### Смысл:
-не смешивать everything in one file
+- `market_data.py`
+  - normalized candle / snapshot structures
 
----
+- `grid_strategy.py`
+  - regime detection
+  - direction choice
+  - deployment decision
 
-# 9. Что не нужно делать сейчас
+- `risk.py`
+  - sizing
+  - economics
+  - symbol constraints
+  - grid plan generation
 
-Пока НЕ надо:
-- сразу включать реальные деньги
-- сразу включать production execution
-- прыгать в сложный live order management
-- делать full bot orchestration beyond paper runtime
+- `simulator.py`
+  - fill simulation
+  - TP/SL handling
+  - invalidation handling
+  - neutral-grid removal
 
-Сейчас сначала надо сделать:
-- стабильный paper runtime
-- стабильный economics policy
-- стабильный state contract
+- `agent.py`
+  - orchestration of one decision cycle
+  - state mutation coordination
 
----
+- `runner.py`
+  - scan aggregation
+  - summary output
+  - readiness output
 
-# 10. После твоих правок
+- `paper_cycle.py`
+  - one-shot operational cycle
 
-Когда ты допишешь:
-1. Bobby подтягивает обновления из GitHub.
-2. Сверяет diff.
-3. Обновляет memory/status/tasks.
-4. Делает final stabilization.
-5. Дальше уже можно переходить к:
-   - Binance testnet execution path
-   - live-ready connector architecture
-   - потом только реальные деньги
+- `paper_loop.py`
+  - repeating autonomous runtime loop
 
----
-
-# 11. Самый короткий practical order of execution
-
-Если делать вообще по порядку, то вот так:
-
-1. Доделать `paper_loop.py`
-2. Подключить живой Binance market-data path
-3. Сделать loop-status + stop flag
-4. Дочистить TP/SL/neutral removal state cleanup
-5. Дочистить risk/state contract
-6. Доделать economics policy under 30 USD
-7. Сделать явную policy по BTCUSDC
-8. Прогнать repeated paper cycles
-9. Проверить summary/readiness consistency
-10. Вернуть Bobby на final integration pass
+This separation is not mandatory, but it is strongly recommended.
 
 ---
 
-# 12. Итог
+# 10. What should NOT be done yet
 
-Если по-простому:
+At this stage, do NOT jump early into:
+- real-money execution
+- production live trading
+- complicated live order management
+- overly broad bot orchestration beyond stable paper runtime
 
-Тебе нужно доделать не “всю стратегию с нуля”, а вот эти хвосты:
-- автономный runtime loop
-- реальный market-data path
-- economics policy
-- финальный state/risk contract
-- стабильность repeated paper runtime
+First finish:
+- stable paper runtime
+- stable economics policy
+- stable state/risk contract
+- stable repeated-cycle behavior
 
-После этого Bobby уже сможет быстро добить финальный слой и двигаться к testnet/live-ready архитектуре.
+Only after that should the project move to:
+- Binance testnet execution path
+- live-ready architecture
+- eventually real-money deployment
+
+---
+
+# 11. Recommended implementation order
+
+If you want the fastest practical route, do the work in this order:
+
+1. Finish `paper_loop.py`
+2. Connect real Binance market-data input
+3. Add loop-status file and safe stop mechanism
+4. Finalize TP/SL and neutral-removal cleanup behavior
+5. Finalize risk/state contract
+6. Finalize economics policy under 30 USD conditions
+7. Add explicit BTCUSDC policy
+8. Run repeated paper cycles
+9. Validate summary/readiness consistency
+10. Hand the updated code back to Bobby for final integration and stabilization
+
+---
+
+# 12. Direct short summary
+
+If reduced to the essentials, the remaining coding work is:
+- autonomous runtime loop
+- real Binance market-data path
+- strict economics policy
+- strict state/risk contract
+- stable repeated paper runtime behavior
+
+Once those are done, Bobby can come back in and finish:
+- final integration
+- cleanup
+- memory/status updates
+- testnet/live-ready progression
+
+---
+
+# 13. Handoff expectation
+
+After you finish the code updates:
+1. push the changes to GitHub
+2. tell Bobby the updated branch/path/commit if needed
+3. Bobby will pull the changes
+4. Bobby will update memory + control files
+5. Bobby will run final integration pass and continue from there
