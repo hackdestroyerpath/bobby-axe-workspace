@@ -108,6 +108,7 @@ class MainWindow(QMainWindow):
         self.resize(1000, 640)
         self.sessions = self.load_sessions()
         self.selected_index = 0
+        self.process_handles: dict[str, subprocess.Popen] = {}
 
         self.list_widget = QListWidget()
         self.list_widget.currentRowChanged.connect(self.on_select)
@@ -221,7 +222,8 @@ class MainWindow(QMainWindow):
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
         try:
-            proc = subprocess.Popen(s.command, shell=True)
+            proc = subprocess.Popen(s.command, shell=True, stdin=subprocess.PIPE, text=True)
+            self.process_handles[s.name] = proc
             s.status = "active"
             s.last_error = ""
             s.launch_count += 1
@@ -287,10 +289,28 @@ class MainWindow(QMainWindow):
         if not command:
             QMessageBox.information(self, "No command", "Type a command first.")
             return
-        self.info_box.append(
-            f"[todo] send to '{s.name}': {command}\n"
-            f"This prototype currently manages sessions and launch commands; direct command injection into existing Windows terminals is the next implementation layer."
-        )
+
+        proc = self.process_handles.get(s.name)
+        if not proc or proc.stdin is None:
+            self.info_box.append(f"[warn] session '{s.name}' is not managed yet; launch/reconnect it from helper first.")
+            return
+
+        try:
+            proc.stdin.write(command + "\n")
+            proc.stdin.flush()
+            s.last_seen_ts = time.time()
+            s.state_hint = 'command_sent'
+            self.save_sessions()
+            self.refresh_list()
+            self.list_widget.setCurrentRow(self.selected_index)
+            self.info_box.append(f"[ok] sent to '{s.name}': {command}")
+        except Exception as exc:
+            s.last_error = str(exc)
+            s.state_hint = 'send_failed'
+            self.save_sessions()
+            self.refresh_list()
+            self.list_widget.setCurrentRow(self.selected_index)
+            self.info_box.append(f"[err] failed send to '{s.name}': {exc}")
 
 
 def main() -> None:
