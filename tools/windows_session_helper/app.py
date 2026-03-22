@@ -35,12 +35,15 @@ class SessionProfile:
     command: str
     status: str = "inactive"
     notes: str = ""
+    shell_type: str = "powershell"
+    auto_start: bool = False
+    last_error: str = ""
 
 
 DEFAULT_SESSIONS = [
-    SessionProfile(name="Jack VPS", command="powershell -NoExit -Command ssh openclaw@YOUR_VPS_IP"),
-    SessionProfile(name="Extra Server", command="powershell -NoExit -Command ssh user@YOUR_OTHER_HOST"),
-    SessionProfile(name="Local PowerShell", command="powershell -NoExit"),
+    SessionProfile(name="Jack VPS", command="powershell -NoExit -Command ssh openclaw@YOUR_VPS_IP", shell_type="ssh", auto_start=True),
+    SessionProfile(name="Extra Server", command="powershell -NoExit -Command ssh user@YOUR_OTHER_HOST", shell_type="ssh", auto_start=False),
+    SessionProfile(name="Local PowerShell", command="powershell -NoExit", shell_type="powershell", auto_start=False),
 ]
 
 
@@ -51,11 +54,15 @@ class SessionEditDialog(QDialog):
         self.name_edit = QLineEdit(profile.name)
         self.command_edit = QLineEdit(profile.command)
         self.notes_edit = QLineEdit(profile.notes)
+        self.shell_edit = QLineEdit(profile.shell_type)
+        self.auto_start_edit = QLineEdit('true' if profile.auto_start else 'false')
 
         form = QFormLayout()
         form.addRow("Name", self.name_edit)
         form.addRow("Command", self.command_edit)
         form.addRow("Notes", self.notes_edit)
+        form.addRow("Shell type", self.shell_edit)
+        form.addRow("Auto start (true/false)", self.auto_start_edit)
 
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.accept)
@@ -77,6 +84,9 @@ class SessionEditDialog(QDialog):
             command=self.command_edit.text().strip() or old.command,
             status=old.status,
             notes=self.notes_edit.text().strip(),
+            shell_type=self.shell_edit.text().strip() or old.shell_type,
+            auto_start=self.auto_start_edit.text().strip().lower() == 'true',
+            last_error=old.last_error,
         )
 
 
@@ -96,6 +106,8 @@ class MainWindow(QMainWindow):
         self.command_label.setWordWrap(True)
         self.notes_label = QLabel("Notes: —")
         self.notes_label.setWordWrap(True)
+        self.meta_label = QLabel("Meta: —")
+        self.meta_label.setWordWrap(True)
 
         self.reconnect_btn = QPushButton("Connect / Reconnect")
         self.reconnect_btn.clicked.connect(self.reconnect_selected)
@@ -122,6 +134,7 @@ class MainWindow(QMainWindow):
         right.addWidget(self.status_label)
         right.addWidget(self.command_label)
         right.addWidget(self.notes_label)
+        right.addWidget(self.meta_label)
 
         row = QHBoxLayout()
         row.addWidget(self.reconnect_btn)
@@ -147,7 +160,18 @@ class MainWindow(QMainWindow):
     def load_sessions(self) -> list[SessionProfile]:
         if CONFIG_PATH.exists():
             data = json.loads(CONFIG_PATH.read_text())
-            return [SessionProfile(**item) for item in data]
+            normalized = []
+            for item in data:
+                normalized.append(SessionProfile(
+                    name=item.get('name', 'Unnamed'),
+                    command=item.get('command', 'powershell -NoExit'),
+                    status=item.get('status', 'inactive'),
+                    notes=item.get('notes', ''),
+                    shell_type=item.get('shell_type', 'powershell'),
+                    auto_start=bool(item.get('auto_start', False)),
+                    last_error=item.get('last_error', ''),
+                ))
+            return normalized
         self.save_sessions(DEFAULT_SESSIONS)
         return DEFAULT_SESSIONS.copy()
 
@@ -170,15 +194,18 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Status: {s.status}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
+        self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | last_error={s.last_error or '—'}")
 
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
         try:
             subprocess.Popen(s.command, shell=True)
             s.status = "active"
+            s.last_error = ""
             self.info_box.append(f"[ok] launched/reconnected: {s.name}")
         except Exception as exc:
             s.status = "inactive"
+            s.last_error = str(exc)
             self.info_box.append(f"[err] failed to launch {s.name}: {exc}")
         self.save_sessions()
         self.refresh_list()
