@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self.refresh_state_hints)
         self.status_timer.start(3000)
+        self.run_auto_start_sessions()
 
     def load_sessions(self) -> list[SessionProfile]:
         if CONFIG_PATH.exists():
@@ -236,6 +237,31 @@ class MainWindow(QMainWindow):
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
         self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
+
+    def run_auto_start_sessions(self) -> None:
+        for idx, s in enumerate(self.sessions):
+            if s.auto_start:
+                try:
+                    proc = subprocess.Popen(s.command, shell=True, stdin=subprocess.PIPE, text=True)
+                    self.process_handles[s.name] = proc
+                    s.status = 'active'
+                    s.last_error = ''
+                    s.launch_count += 1
+                    s.last_launch_ok = True
+                    s.process_id = getattr(proc, 'pid', None)
+                    s.last_seen_ts = time.time()
+                    s.state_hint = 'auto_started'
+                    self.info_box.append(f"[ok] auto-started: {s.name} | pid={s.process_id}")
+                except Exception as exc:
+                    s.status = 'inactive'
+                    s.last_error = str(exc)
+                    s.launch_count += 1
+                    s.last_launch_ok = False
+                    s.process_id = None
+                    s.state_hint = 'auto_start_failed'
+                    self.info_box.append(f"[err] auto-start failed: {s.name}: {exc}")
+        self.save_sessions()
+        self.refresh_list()
 
     def add_session(self) -> None:
         profile = SessionProfile(name="New Session", command="powershell -NoExit")
