@@ -258,7 +258,13 @@ async function lookup() {
     share_pct: endpointTotal > 0 ? Number((100 * Number(x.request_count ?? 0) / endpointTotal).toFixed(1)) : 0,
     last_request_at: x.last_request_at || null,
   })), null, 2);
-  document.getElementById('statsByStatusPre').textContent = JSON.stringify(stats.by_status || [], null, 2);
+  const statusTotal = (stats.by_status || []).reduce((acc, x) => acc + Number(x.request_count ?? 0), 0);
+  document.getElementById('statsByStatusPre').textContent = JSON.stringify((stats.by_status || []).map(x => ({
+    request_status: x.request_status,
+    request_count: x.request_count ?? 0,
+    share_pct: statusTotal > 0 ? Number((100 * Number(x.request_count ?? 0) / statusTotal).toFixed(1)) : 0,
+    last_request_at: x.last_request_at || null,
+  })), null, 2);
   document.getElementById('statsRecentPre').textContent = JSON.stringify(stats.recent_requests || [], null, 2);
   document.getElementById('refreshState').textContent = 'Updated: ' + new Date().toLocaleTimeString();
 }
