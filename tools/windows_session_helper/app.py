@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -41,6 +42,8 @@ class SessionProfile:
     launch_count: int = 0
     last_launch_ok: bool = False
     process_id: int | None = None
+    last_seen_ts: float = 0.0
+    state_hint: str = "unknown"
 
 
 DEFAULT_SESSIONS = [
@@ -93,6 +96,8 @@ class SessionEditDialog(QDialog):
             launch_count=old.launch_count,
             last_launch_ok=old.last_launch_ok,
             process_id=old.process_id,
+            last_seen_ts=old.last_seen_ts,
+            state_hint=old.state_hint,
         )
 
 
@@ -165,6 +170,9 @@ class MainWindow(QMainWindow):
 
         self.refresh_list()
         self.list_widget.setCurrentRow(0)
+        self.status_timer = QTimer(self)
+        self.status_timer.timeout.connect(self.refresh_state_hints)
+        self.status_timer.start(3000)
 
     def load_sessions(self) -> list[SessionProfile]:
         if CONFIG_PATH.exists():
@@ -182,6 +190,8 @@ class MainWindow(QMainWindow):
                     launch_count=int(item.get('launch_count', 0)),
                     last_launch_ok=bool(item.get('last_launch_ok', False)),
                     process_id=item.get('process_id'),
+                    last_seen_ts=float(item.get('last_seen_ts', 0.0)),
+                    state_hint=item.get('state_hint', 'unknown'),
                 ))
             return normalized
         self.save_sessions(DEFAULT_SESSIONS)
@@ -194,7 +204,7 @@ class MainWindow(QMainWindow):
     def refresh_list(self) -> None:
         self.list_widget.clear()
         for session in self.sessions:
-            item = QListWidgetItem(f"{session.name} [{session.status}]")
+            item = QListWidgetItem(f"{session.name} [{session.status} | {session.state_hint}]")
             self.list_widget.addItem(item)
 
     def on_select(self, index: int) -> None:
@@ -206,7 +216,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Status: {s.status}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
-        self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
+        self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
 
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
@@ -217,6 +227,8 @@ class MainWindow(QMainWindow):
             s.launch_count += 1
             s.last_launch_ok = True
             s.process_id = getattr(proc, 'pid', None)
+            s.last_seen_ts = time.time()
+            s.state_hint = 'launched'
             self.info_box.append(f"[ok] launched/reconnected: {s.name} | pid={s.process_id}")
         except Exception as exc:
             s.status = "inactive"
@@ -224,15 +236,36 @@ class MainWindow(QMainWindow):
             s.launch_count += 1
             s.last_launch_ok = False
             s.process_id = None
+            s.state_hint = 'launch_failed'
             self.info_box.append(f"[err] failed to launch {s.name}: {exc}")
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
 
+    def refresh_state_hints(self) -> None:
+        now = time.time()
+        for s in self.sessions:
+            if s.status == 'active' and s.last_seen_ts:
+                age = now - s.last_seen_ts
+                if age < 10:
+                    s.state_hint = 'fresh'
+                elif age < 60:
+                    s.state_hint = 'idle'
+                else:
+                    s.state_hint = 'stale'
+            elif s.status == 'inactive' and s.state_hint == 'unknown':
+                s.state_hint = 'inactive'
+        current = self.list_widget.currentRow()
+        self.save_sessions()
+        self.refresh_list()
+        if current >= 0:
+            self.list_widget.setCurrentRow(current)
+
     def mark_inactive(self) -> None:
         s = self.sessions[self.selected_index]
         s.status = "inactive"
         s.process_id = None
+        s.state_hint = 'manually_inactive'
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
