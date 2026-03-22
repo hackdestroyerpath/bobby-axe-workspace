@@ -128,9 +128,9 @@ class MainWindow(QMainWindow):
         self.edit_btn = QPushButton("Edit Session")
         self.edit_btn.clicked.connect(self.edit_selected)
 
-        self.selected_label = QLabel("Selected session: —")
+        self.selected_label = QLabel("Selected target: —")
         self.command_input = QTextEdit()
-        self.command_input.setPlaceholderText("Type command to send to selected session...")
+        self.command_input.setPlaceholderText("Type command here, then Send to Selected...")
         self.command_input.setFixedHeight(100)
         self.send_btn = QPushButton("Send to Selected")
         self.send_btn.clicked.connect(self.send_command)
@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
         row.addWidget(self.edit_btn)
         right.addLayout(row)
         right.addSpacing(16)
-        right.addWidget(QLabel("Shared command input"))
+        right.addWidget(QLabel("Shared command input (sent to selected target)"))
         right.addWidget(self.command_input)
         right.addWidget(self.send_btn)
         right.addSpacing(16)
@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
             return
         self.selected_index = index
         s = self.sessions[index]
-        self.selected_label.setText(f"Selected session: {s.name}")
+        self.selected_label.setText(f"Selected target: {s.name}")
         self.status_label.setText(f"Status: {s.status}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
@@ -292,7 +292,7 @@ class MainWindow(QMainWindow):
 
         proc = self.process_handles.get(s.name)
         if not proc or proc.stdin is None:
-            self.info_box.append(f"[warn] session '{s.name}' is not managed yet; launch/reconnect it from helper first.")
+            self.info_box.append(f"[warn] session '{s.name}' is not managed yet; press Connect / Reconnect in helper first, then send command.")
             return
 
         try:
@@ -304,6 +304,7 @@ class MainWindow(QMainWindow):
             self.refresh_list()
             self.list_widget.setCurrentRow(self.selected_index)
             self.info_box.append(f"[ok] sent to '{s.name}': {command}")
+            self.command_input.clear()
         except Exception as exc:
             s.last_error = str(exc)
             s.state_hint = 'send_failed'
