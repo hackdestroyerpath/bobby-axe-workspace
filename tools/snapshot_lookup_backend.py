@@ -371,6 +371,119 @@ class SnapshotLookupBackend:
                 rows = cur.fetchall()
         return {row['frame']: row for row in rows}
 
+
+    def write_analysis_results(self, request_json: dict[str, Any]) -> dict[str, Any]:
+        mode = request_json.get('mode')
+        snapshot_id = request_json.get('snapshot_id')
+        correlation_id = request_json.get('correlation_id')
+        producer = request_json.get('producer')
+
+        if mode == 'single':
+            items = [request_json.get('analysis_result')]
+        elif mode == 'batch':
+            items = request_json.get('analysis_results') or []
+        else:
+            raise ValueError('unsupported write mode')
+
+        if not items:
+            raise ValueError('no analysis_result payloads provided')
+
+        stored = 0
+        updated = 0
+        rejected = 0
+        errors = []
+
+        upsert_sql = """
+        INSERT INTO collector.analysis_results (
+            analysis_id, snapshot_id, correlation_id, producer, event_type,
+            symbol, strategy, frame, signal, conclusion, confidence,
+            observed_at, source_window_from, source_window_to,
+            status, result_code, details_json, created_at_utc, updated_at_utc
+        ) VALUES (
+            %(analysis_id)s, %(snapshot_id)s, %(correlation_id)s, %(producer)s, %(event_type)s,
+            %(symbol)s, %(strategy)s, %(frame)s, %(signal)s, %(conclusion)s, %(confidence)s,
+            %(observed_at)s, %(source_window_from)s, %(source_window_to)s,
+            %(status)s, %(result_code)s, %(details_json)s, NOW(), NOW()
+        )
+        ON CONFLICT (analysis_id)
+        DO UPDATE SET
+            snapshot_id = EXCLUDED.snapshot_id,
+            correlation_id = EXCLUDED.correlation_id,
+            producer = EXCLUDED.producer,
+            event_type = EXCLUDED.event_type,
+            symbol = EXCLUDED.symbol,
+            strategy = EXCLUDED.strategy,
+            frame = EXCLUDED.frame,
+            signal = EXCLUDED.signal,
+            conclusion = EXCLUDED.conclusion,
+            confidence = EXCLUDED.confidence,
+            observed_at = EXCLUDED.observed_at,
+            source_window_from = EXCLUDED.source_window_from,
+            source_window_to = EXCLUDED.source_window_to,
+            status = EXCLUDED.status,
+            result_code = EXCLUDED.result_code,
+            details_json = EXCLUDED.details_json,
+            updated_at_utc = NOW()
+        """
+
+        with self.db.connect() as conn:
+            with conn.cursor() as cur:
+                for item in items:
+                    try:
+                        obj = dict(item or {})
+                        obj.setdefault('snapshot_id', snapshot_id)
+                        obj.setdefault('correlation_id', correlation_id)
+                        obj.setdefault('producer', producer)
+                        params = {
+                            'analysis_id': obj['analysis_id'],
+                            'snapshot_id': obj['snapshot_id'],
+                            'correlation_id': obj.get('correlation_id'),
+                            'producer': obj.get('producer'),
+                            'event_type': obj['event_type'],
+                            'symbol': obj['symbol'],
+                            'strategy': obj['strategy'],
+                            'frame': obj['frame'],
+                            'signal': obj['signal'],
+                            'conclusion': obj['conclusion'],
+                            'confidence': obj['confidence'],
+                            'observed_at': obj['observed_at'],
+                            'source_window_from': obj['source_window']['from'],
+                            'source_window_to': obj['source_window']['to'],
+                            'status': obj['status'],
+                            'result_code': obj['result_code'],
+                            'details_json': json.dumps(obj.get('details', {})),
+                        }
+                        cur.execute("""
+                            SELECT analysis_id
+                            FROM collector.analysis_results
+                            WHERE analysis_id = %s
+                        """, (params['analysis_id'],))
+                        existed = cur.fetchone() is not None
+                        cur.execute(upsert_sql, params)
+                        if existed:
+                            updated += 1
+                        else:
+                            stored += 1
+                    except Exception as exc:
+                        rejected += 1
+                        errors.append({
+                            'analysis_id': None if not item else item.get('analysis_id'),
+                            'error_code': 'write_error',
+                            'message': str(exc),
+                        })
+                conn.commit()
+
+        return {
+            'status': 'ok' if rejected == 0 else ('partial' if stored or updated else 'error'),
+            'accepted_count': len(items),
+            'stored_count': stored,
+            'updated_count': updated,
+            'rejected_count': rejected,
+            'errors': errors,
+            'snapshot_id': snapshot_id,
+            'correlation_id': correlation_id,
+        }
+
     def get_access_stats(self, snapshot_id: str | None = None) -> dict[str, Any]:
         with self.db.connect() as conn:
             with conn.cursor() as cur:

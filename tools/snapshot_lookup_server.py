@@ -247,6 +247,27 @@ ADMIN_API_KEY = os.environ.get('SNAPSHOT_LOOKUP_ADMIN_API_KEY', '').strip()
 class SnapshotLookupHandler(BaseHTTPRequestHandler):
     backend = SnapshotLookupBackend()
 
+
+    def do_POST(self) -> None:
+        parsed = urlparse(self.path)
+        client_ctx = self._authenticate()
+        if parsed.path == '/analysis/write':
+            if not client_ctx['allowed']:
+                self._send_json({'error': 'unauthorized'}, status=HTTPStatus.UNAUTHORIZED)
+                return
+            length = int(self.headers.get('Content-Length', '0') or '0')
+            raw = self.rfile.read(length)
+            try:
+                request_json = json.loads(raw.decode('utf-8'))
+            except Exception:
+                self._send_json({'error': 'invalid_json'}, status=HTTPStatus.BAD_REQUEST)
+                return
+            result = self.backend.write_analysis_results(request_json)
+            self._log_access(client_ctx, request_json.get('snapshot_id'), None, request_json.get('snapshot_id'), 'analysis_write', result.get('status', 'ok'))
+            self._send_json(result)
+            return
+        self._send_json({'error': 'not_found'}, status=HTTPStatus.NOT_FOUND)
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         client_ctx = self._authenticate()
@@ -350,6 +371,7 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
                     'health': '/health',
                     'lookup': '/lookup?snapshot_id=<snapshot_id>',
                     'payload': '/payload?snapshot_id=<snapshot_id>&symbol=<symbol>',
+                    'analysis_write': 'POST /analysis/write',
                 },
             },
             status=HTTPStatus.OK,
