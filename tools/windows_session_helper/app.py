@@ -114,6 +114,7 @@ class MainWindow(QMainWindow):
         self.list_widget.currentRowChanged.connect(self.on_select)
 
         self.status_label = QLabel("Status: —")
+        self.dashboard_label = QLabel("Dashboard: —")
         self.command_label = QLabel("Command: —")
         self.command_label.setWordWrap(True)
         self.notes_label = QLabel("Notes: —")
@@ -145,6 +146,7 @@ class MainWindow(QMainWindow):
 
         right = QVBoxLayout()
         right.addWidget(self.selected_label)
+        right.addWidget(self.dashboard_label)
         right.addWidget(self.status_label)
         right.addWidget(self.command_label)
         right.addWidget(self.notes_label)
@@ -205,7 +207,13 @@ class MainWindow(QMainWindow):
     def refresh_list(self) -> None:
         self.list_widget.clear()
         for session in self.sessions:
-            item = QListWidgetItem(f"{session.name} [{session.status} | {session.state_hint}]")
+            item = QListWidgetItem(f"{session.name} | {session.status} | {session.state_hint} | launches={session.launch_count}")
+            if session.status == 'active':
+                item.setBackground(Qt.darkGreen)
+            elif session.state_hint in ('launch_failed', 'send_failed'):
+                item.setBackground(Qt.darkRed)
+            else:
+                item.setBackground(Qt.darkYellow)
             self.list_widget.addItem(item)
 
     def on_select(self, index: int) -> None:
@@ -215,6 +223,7 @@ class MainWindow(QMainWindow):
         s = self.sessions[index]
         self.selected_label.setText(f"Selected target: {s.name}")
         self.status_label.setText(f"Status: {s.status}")
+        self.dashboard_label.setText(f"Dashboard: {s.name} | state={s.state_hint} | launches={s.launch_count}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
         self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
