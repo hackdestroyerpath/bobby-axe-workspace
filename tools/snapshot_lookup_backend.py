@@ -321,6 +321,7 @@ class SnapshotLookupBackend:
             'as_of_utc': base['snapshot']['as_of_utc'],
             'payload_status': 'blocked',
             'result_code': 'error',
+            'strategy_registry': self.get_strategy_registry('Ben_Kim'),
             'frames': {
                 '1m': {'status': 'missing', 'selected_by': 'best_observed_at_lte_as_of_utc', 'payload': None},
                 '5m': {'status': 'missing', 'selected_by': 'best_observed_at_lte_as_of_utc', 'payload': None},
