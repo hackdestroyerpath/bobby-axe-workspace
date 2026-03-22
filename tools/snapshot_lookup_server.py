@@ -106,6 +106,10 @@ HTML_PAGE = """<!doctype html>
         <h3>Access Stats</h3>
         <div class="grid" id="statsSummaryGrid"></div>
         <div class="card" style="margin-top:12px; background:#0f1530;">
+          <h4 style="margin-top:0;">Team Access Overview</h4>
+          <div class="grid" id="teamAccessGrid"></div>
+        </div>
+        <div class="card" style="margin-top:12px; background:#0f1530;">
           <h4 style="margin-top:0;">By User</h4>
           <pre id="statsByUserPre"></pre>
         </div>
@@ -228,6 +232,13 @@ async function lookup() {
     metric('Unique users', String(summary.unique_users ?? 0)),
     metric('Last request', summary.last_request_at || '—'),
   ].join('');
+  const canonicalTeam = ['BobbyAxe','Jack','BenKim','Jusetta','DollarBill','Maffi','BossIgor'];
+  const byUser = stats.by_user || [];
+  const teamCards = canonicalTeam.map(name => {
+    const row = byUser.find(x => x.nickname === name) || {};
+    return metric(name, `total: ${row.total_requests ?? 0} | snapshot: ${row.snapshot_requests ?? 0} | last: ${row.last_request_at || '—'}`);
+  });
+  document.getElementById('teamAccessGrid').innerHTML = teamCards.join('');
   document.getElementById('statsByUserPre').textContent = JSON.stringify((stats.by_user || []).map(x => ({
     nickname: x.nickname,
     total_requests: x.total_requests ?? x.request_count ?? 0,
