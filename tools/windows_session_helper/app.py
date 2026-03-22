@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -38,6 +38,9 @@ class SessionProfile:
     shell_type: str = "powershell"
     auto_start: bool = False
     last_error: str = ""
+    launch_count: int = 0
+    last_launch_ok: bool = False
+    process_id: int | None = None
 
 
 DEFAULT_SESSIONS = [
@@ -87,6 +90,9 @@ class SessionEditDialog(QDialog):
             shell_type=self.shell_edit.text().strip() or old.shell_type,
             auto_start=self.auto_start_edit.text().strip().lower() == 'true',
             last_error=old.last_error,
+            launch_count=old.launch_count,
+            last_launch_ok=old.last_launch_ok,
+            process_id=old.process_id,
         )
 
 
@@ -111,6 +117,8 @@ class MainWindow(QMainWindow):
 
         self.reconnect_btn = QPushButton("Connect / Reconnect")
         self.reconnect_btn.clicked.connect(self.reconnect_selected)
+        self.mark_inactive_btn = QPushButton("Mark Inactive")
+        self.mark_inactive_btn.clicked.connect(self.mark_inactive)
         self.edit_btn = QPushButton("Edit Session")
         self.edit_btn.clicked.connect(self.edit_selected)
 
@@ -138,6 +146,7 @@ class MainWindow(QMainWindow):
 
         row = QHBoxLayout()
         row.addWidget(self.reconnect_btn)
+        row.addWidget(self.mark_inactive_btn)
         row.addWidget(self.edit_btn)
         right.addLayout(row)
         right.addSpacing(16)
@@ -170,6 +179,9 @@ class MainWindow(QMainWindow):
                     shell_type=item.get('shell_type', 'powershell'),
                     auto_start=bool(item.get('auto_start', False)),
                     last_error=item.get('last_error', ''),
+                    launch_count=int(item.get('launch_count', 0)),
+                    last_launch_ok=bool(item.get('last_launch_ok', False)),
+                    process_id=item.get('process_id'),
                 ))
             return normalized
         self.save_sessions(DEFAULT_SESSIONS)
@@ -194,22 +206,37 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Status: {s.status}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
-        self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | last_error={s.last_error or '—'}")
+        self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
 
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
         try:
-            subprocess.Popen(s.command, shell=True)
+            proc = subprocess.Popen(s.command, shell=True)
             s.status = "active"
             s.last_error = ""
-            self.info_box.append(f"[ok] launched/reconnected: {s.name}")
+            s.launch_count += 1
+            s.last_launch_ok = True
+            s.process_id = getattr(proc, 'pid', None)
+            self.info_box.append(f"[ok] launched/reconnected: {s.name} | pid={s.process_id}")
         except Exception as exc:
             s.status = "inactive"
             s.last_error = str(exc)
+            s.launch_count += 1
+            s.last_launch_ok = False
+            s.process_id = None
             self.info_box.append(f"[err] failed to launch {s.name}: {exc}")
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
+
+    def mark_inactive(self) -> None:
+        s = self.sessions[self.selected_index]
+        s.status = "inactive"
+        s.process_id = None
+        self.save_sessions()
+        self.refresh_list()
+        self.list_widget.setCurrentRow(self.selected_index)
+        self.info_box.append(f"[ok] marked inactive: {s.name}")
 
     def edit_selected(self) -> None:
         s = self.sessions[self.selected_index]
