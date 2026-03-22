@@ -59,8 +59,9 @@ HTML_PAGE = """<!doctype html>
           <input id="snapshotId" type="text" placeholder="snapshot_id / bundle_id / correlation_id" />
         </div>
         <div class="col" style="flex:1; min-width:220px;">
-          <input id="selectedSymbol" list="snapshotSymbols" type="text" placeholder="optional symbol (choose from snapshot)" />
-          <datalist id="snapshotSymbols"></datalist>
+          <select id="selectedSymbol" style="width:100%; padding:12px; border-radius:8px; border:1px solid #3a4a8a; background:#0f1530; color:#fff;">
+            <option value="">optional symbol (choose from snapshot)</option>
+          </select>
         </div>
         <div class="col" style="flex:0; min-width:160px;">
           <button id="lookupBtn">Lookup</button>
@@ -143,11 +144,15 @@ async function lookup() {
   const downstream = data.downstream || {};
   const frames = (data.readiness || {}).frames || {};
   const symbols = meta.symbols || [];
-  const symbolList = document.getElementById('snapshotSymbols');
-  symbolList.innerHTML = symbols.map(x => `<option value="${String(x).replace(/"/g, '&quot;')}"></option>`).join('');
   const symbolInput = document.getElementById('selectedSymbol');
-  if (!symbolInput.value.trim() && meta.symbol) {
+  const currentSymbol = symbolInput.value;
+  symbolInput.innerHTML = ['<option value="">optional symbol (choose from snapshot)</option>']
+    .concat(symbols.map(x => `<option value="${String(x).replace(/"/g, '&quot;')}">${x}</option>`))
+    .join('');
+  if (meta.symbol && symbols.includes(meta.symbol)) {
     symbolInput.value = meta.symbol;
+  } else if (currentSymbol && symbols.includes(currentSymbol)) {
+    symbolInput.value = currentSymbol;
   }
 
   document.getElementById('summaryGrid').innerHTML = [
