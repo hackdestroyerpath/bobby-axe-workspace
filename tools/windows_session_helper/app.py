@@ -122,6 +122,8 @@ class MainWindow(QMainWindow):
         self.meta_label = QLabel("Meta: —")
         self.meta_label.setWordWrap(True)
 
+        self.add_btn = QPushButton("Add Session")
+        self.add_btn.clicked.connect(self.add_session)
         self.reconnect_btn = QPushButton("Connect / Reconnect")
         self.reconnect_btn.clicked.connect(self.reconnect_selected)
         self.mark_inactive_btn = QPushButton("Mark Inactive")
@@ -153,6 +155,7 @@ class MainWindow(QMainWindow):
         right.addWidget(self.meta_label)
 
         row = QHBoxLayout()
+        row.addWidget(self.add_btn)
         row.addWidget(self.reconnect_btn)
         row.addWidget(self.mark_inactive_btn)
         row.addWidget(self.edit_btn)
@@ -227,6 +230,17 @@ class MainWindow(QMainWindow):
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
         self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
+
+    def add_session(self) -> None:
+        profile = SessionProfile(name="New Session", command="powershell -NoExit")
+        dlg = SessionEditDialog(profile, self)
+        if dlg.exec() == QDialog.Accepted:
+            new_profile = dlg.to_profile(profile)
+            self.sessions.append(new_profile)
+            self.save_sessions()
+            self.refresh_list()
+            self.list_widget.setCurrentRow(len(self.sessions) - 1)
+            self.info_box.append(f"[ok] added session: {new_profile.name}")
 
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
