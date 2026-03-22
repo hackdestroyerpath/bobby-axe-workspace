@@ -59,7 +59,8 @@ HTML_PAGE = """<!doctype html>
           <input id="snapshotId" type="text" placeholder="snapshot_id / bundle_id / correlation_id" />
         </div>
         <div class="col" style="flex:1; min-width:220px;">
-          <input id="selectedSymbol" type="text" placeholder="optional symbol (for multi-symbol snapshots)" />
+          <input id="selectedSymbol" list="snapshotSymbols" type="text" placeholder="optional symbol (choose from snapshot)" />
+          <datalist id="snapshotSymbols"></datalist>
         </div>
         <div class="col" style="flex:0; min-width:160px;">
           <button id="lookupBtn">Lookup</button>
@@ -141,6 +142,13 @@ async function lookup() {
   const meta = data.snapshot || {};
   const downstream = data.downstream || {};
   const frames = (data.readiness || {}).frames || {};
+  const symbols = meta.symbols || [];
+  const symbolList = document.getElementById('snapshotSymbols');
+  symbolList.innerHTML = symbols.map(x => `<option value="${String(x).replace(/"/g, '&quot;')}"></option>`).join('');
+  const symbolInput = document.getElementById('selectedSymbol');
+  if (!symbolInput.value.trim() && meta.symbol) {
+    symbolInput.value = meta.symbol;
+  }
 
   document.getElementById('summaryGrid').innerHTML = [
     metric('lookup', `${(data.lookup || {}).status || '—'} via ${(data.lookup || {}).resolved_by || '—'}`, statusClass((data.lookup || {}).status)),
