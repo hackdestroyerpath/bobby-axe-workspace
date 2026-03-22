@@ -236,7 +236,6 @@ async function lookup() {
   ].join('');
   const canonicalTeam = ['BobbyAxe','Jack','BenKim','Jusetta','DollarBill','Maffi','BossIgor'];
   const byUser = stats.by_user || [];
-  const totalRequestsAll = byUser.reduce((acc, x) => acc + Number(x.total_requests ?? x.request_count ?? 0), 0);
   const teamCards = canonicalTeam.map(name => {
     const row = byUser.find(x => x.nickname === name) || {};
     const total = Number(row.total_requests ?? row.request_count ?? 0);
