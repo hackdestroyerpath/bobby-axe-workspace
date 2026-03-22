@@ -281,6 +281,95 @@ class SnapshotLookupBackend:
             response['notes'].append('At least one required frame is not ready at or before snapshot as_of_utc.')
 
 
+
+    def resolve_feature_payload(self, snapshot_id: str, selected_symbol: str | None = None) -> dict[str, Any]:
+        base = self.resolve_snapshot(snapshot_id, selected_symbol=selected_symbol)
+        response = {
+            'snapshot_id': base['snapshot']['snapshot_id'],
+            'bundle_id': base['snapshot']['bundle_id'],
+            'correlation_id': base['snapshot']['correlation_id'],
+            'symbol': base['snapshot']['symbol'],
+            'as_of_utc': base['snapshot']['as_of_utc'],
+            'payload_status': 'blocked',
+            'result_code': 'error',
+            'frames': {
+                '1m': {'status': 'missing', 'selected_by': 'best_observed_at_lte_as_of_utc', 'payload': None},
+                '5m': {'status': 'missing', 'selected_by': 'best_observed_at_lte_as_of_utc', 'payload': None},
+                '60m': {'status': 'missing', 'selected_by': 'best_observed_at_lte_as_of_utc', 'payload': None},
+            },
+            'notes': list(base.get('notes', [])),
+        }
+
+        if not base['lookup']['found']:
+            response['payload_status'] = 'blocked'
+            response['result_code'] = 'not_found'
+            response['notes'].append('Snapshot not found for payload resolution.')
+            return response
+
+        if not base['snapshot']['symbol']:
+            response['payload_status'] = 'blocked'
+            response['result_code'] = 'error'
+            response['notes'].append('Symbol resolution failed for payload endpoint.')
+            return response
+
+        rows = self._fetch_payload_rows(base['snapshot']['symbol'], base['snapshot']['as_of_utc'])
+        ready_count = 0
+        partial_count = 0
+        for frame in ('1m', '5m', '60m'):
+            row = rows.get(frame)
+            if row is None:
+                continue
+            status = 'ready' if row['packet_status'] == 'ready' and row['packet_result_code'] == 'ok' else 'partial'
+            if status == 'ready':
+                ready_count += 1
+            else:
+                partial_count += 1
+            response['frames'][frame] = {
+                'status': status,
+                'selected_by': 'best_observed_at_lte_as_of_utc',
+                'payload': self._normalize_row(row),
+            }
+
+        if ready_count == 3:
+            response['payload_status'] = 'ready'
+            response['result_code'] = 'ok'
+            response['notes'].append('All required frame payloads resolved at or before snapshot as_of_utc.')
+        elif ready_count > 0 or partial_count > 0:
+            response['payload_status'] = 'partial'
+            response['result_code'] = 'partial'
+            response['notes'].append('One or more frame payloads are partial or missing at snapshot as_of_utc.')
+        else:
+            response['payload_status'] = 'blocked'
+            response['result_code'] = 'error'
+            response['notes'].append('No frame payloads could be resolved for this snapshot and symbol.')
+
+        return response
+
+    def _fetch_payload_rows(self, symbol: str, as_of_utc: str | Any) -> dict[str, Any]:
+        with self.db.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    WITH ranked AS (
+                        SELECT *,
+                               row_number() OVER (
+                                   PARTITION BY symbol, frame
+                                   ORDER BY observed_at DESC
+                               ) AS rn
+                        FROM collector.feature_packet_tf
+                        WHERE symbol = %s
+                          AND frame IN ('1m', '5m', '60m')
+                          AND observed_at <= %s
+                    )
+                    SELECT *
+                    FROM ranked
+                    WHERE rn = 1
+                    """,
+                    (symbol, as_of_utc),
+                )
+                rows = cur.fetchall()
+        return {row['frame']: row for row in rows}
+
     def get_access_stats(self, snapshot_id: str | None = None) -> dict[str, Any]:
         with self.db.connect() as conn:
             with conn.cursor() as cur:

@@ -254,6 +254,22 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
             self._send_json({'status': 'ok', 'auth_optional': AUTH_OPTIONAL, 'auth_mode': 'optional' if AUTH_OPTIONAL else 'mandatory'})
             return
 
+        if parsed.path == '/payload':
+            params = parse_qs(parsed.query)
+            snapshot_id = (params.get('snapshot_id') or [''])[0].strip()
+            selected_symbol = (params.get('symbol') or [''])[0].strip() or None
+            if not snapshot_id:
+                self._send_json({'error': 'snapshot_id is required'}, status=HTTPStatus.BAD_REQUEST)
+                return
+            if not client_ctx['allowed']:
+                self._log_access(client_ctx, snapshot_id, selected_symbol, None, 'payload', 'denied')
+                self._send_json({'error': 'unauthorized'}, status=HTTPStatus.UNAUTHORIZED)
+                return
+            result = self.backend.resolve_feature_payload(snapshot_id, selected_symbol=selected_symbol)
+            self._log_access(client_ctx, snapshot_id, selected_symbol, result.get('bundle_id'), 'payload', result.get('result_code', 'ok'))
+            self._send_json(result)
+            return
+
         if parsed.path == '/lookup':
             params = parse_qs(parsed.query)
             snapshot_id = (params.get('snapshot_id') or [''])[0].strip()
@@ -333,6 +349,7 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
                     'ui': '/',
                     'health': '/health',
                     'lookup': '/lookup?snapshot_id=<snapshot_id>',
+                    'payload': '/payload?snapshot_id=<snapshot_id>&symbol=<symbol>',
                 },
             },
             status=HTTPStatus.OK,
