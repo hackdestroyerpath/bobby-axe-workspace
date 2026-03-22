@@ -1,0 +1,118 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 4108 >>
+stream
+0.950 0.670 0.150 rg
+40 760 515 48 re f
+BT /F2 20 Tf 56 790 Td (Antares Capital // BTCUSDC analysis snapshot) Tj ET
+BT /F1 10 Tf 56 772 Td (Snapshot: snapshot-4fecd06e-dfa5-4d9b-918f-90a4fec0c56b) Tj ET
+BT /F1 10 Tf 360 772 Td (As of UTC: 2026-03-22T01:28:23Z) Tj ET
+BT /F2 16 Tf 50 735 Td (Executive summary) Tj ET
+BT /F1 12 Tf 50 715 Td (Overall signal: weak_long_bias) Tj ET
+BT /F1 12 Tf 250 715 Td (Overall confidence: 0.54) Tj ET
+BT /F1 11 Tf 50 697 Td (Тестовый analysis-only mock-analysis сформирован и привязан к) Tj ET
+BT /F1 11 Tf 50 683 Td (snapshot_id/correlation_id.) Tj ET
+BT /F2 14 Tf 50 670 Td (Strategy confidence chart) Tj ET
+0.980 0.980 0.980 rg
+0.800 0.800 0.800 RG
+50 500 240 150 re B
+1 w 0.400 0.400 0.400 RG 80 520 m 80 625 l S
+1 w 0.400 0.400 0.400 RG 80 520 m 260 520 l S
+0.5 w 0.880 0.880 0.880 RG 78 546 m 260 546 l S
+BT /F1 8 Tf 50 543 Td (0.25) Tj ET
+0.5 w 0.880 0.880 0.880 RG 78 572 m 260 572 l S
+BT /F1 8 Tf 50 569 Td (0.50) Tj ET
+0.5 w 0.880 0.880 0.880 RG 78 598 m 260 598 l S
+BT /F1 8 Tf 50 595 Td (0.75) Tj ET
+0.5 w 0.880 0.880 0.880 RG 78 625 m 260 625 l S
+BT /F1 8 Tf 50 622 Td (1.00) Tj ET
+0.110 0.650 0.850 rg
+98 520 36 58 re f
+BT /F1 8 Tf 96 506 Td (Trend) Tj ET
+BT /F1 9 Tf 103 586 Td (0.56) Tj ET
+0.960 0.370 0.470 rg
+154 520 36 50 re f
+BT /F1 8 Tf 152 506 Td (Revert) Tj ET
+BT /F1 9 Tf 159 578 Td (0.48) Tj ET
+0.270 0.770 0.450 rg
+210 520 36 51 re f
+BT /F1 8 Tf 208 506 Td (Breakout) Tj ET
+BT /F1 9 Tf 215 579 Td (0.49) Tj ET
+BT /F2 14 Tf 320 670 Td (Per-strategy frame matrix) Tj ET
+0.970 0.970 1.000 rg
+0.850 0.850 0.950 RG
+320 636 220 54 re B
+BT /F2 12 Tf 330 672 Td (trend_following) Tj ET
+BT /F1 9 Tf 330 656 Td (1m: weak_long \(0.54\) | 5m: long_bias) Tj ET
+BT /F1 9 Tf 330 644 Td (\(0.58\) | 60m: neutral_to_long \(0.55\)) Tj ET
+0.970 0.970 1.000 rg
+0.850 0.850 0.950 RG
+320 568 220 54 re B
+BT /F2 12 Tf 330 604 Td (mean_reversion) Tj ET
+BT /F1 9 Tf 330 588 Td (1m: scalp_revert \(0.51\) | 5m:) Tj ET
+BT /F1 9 Tf 330 576 Td (weak_revert \(0.49\) | 60m:) Tj ET
+BT /F1 9 Tf 330 564 Td (no_clear_edge \(0.44\)) Tj ET
+0.970 0.970 1.000 rg
+0.850 0.850 0.950 RG
+320 500 220 54 re B
+BT /F2 12 Tf 330 536 Td (breakout) Tj ET
+BT /F1 9 Tf 330 520 Td (1m: watch_breakout \(0.47\) | 5m:) Tj ET
+BT /F1 9 Tf 330 508 Td (conditional_breakout_long \(0.54\) |) Tj ET
+BT /F1 9 Tf 330 496 Td (60m: neutral \(0.46\)) Tj ET
+BT /F2 16 Tf 50 470 Td (Detailed strategy notes) Tj ET
+1.000 1.000 1.000 rg
+0.850 0.850 0.850 RG
+50 389 495 64 re B
+BT /F2 13 Tf 60 433 Td (trend_following) Tj ET
+BT /F1 10 Tf 60 417 Td (1m: weak_long / conf 0.54 / краткосрочный импульс умеренно положительный, но шум высокий) Tj ET
+BT /F1 10 Tf 60 405 Td (5m: long_bias / conf 0.58 / локальный тренд сохраняет слабый восходящий уклон) Tj ET
+BT /F1 10 Tf 60 393 Td (60m: neutral_to_long / conf 0.55 / старший контекст нейтрально-позитивный без сильного) Tj ET
+BT /F1 10 Tf 60 381 Td (подтверждения) Tj ET
+1.000 1.000 1.000 rg
+0.850 0.850 0.850 RG
+50 307 495 64 re B
+BT /F2 13 Tf 60 351 Td (mean_reversion) Tj ET
+BT /F1 10 Tf 60 335 Td (1m: scalp_revert / conf 0.51 / вероятен краткий откат после локального импульса) Tj ET
+BT /F1 10 Tf 60 323 Td (5m: weak_revert / conf 0.49 / возврат к среднему возможен, но edge ограничен) Tj ET
+BT /F1 10 Tf 60 311 Td (60m: no_clear_edge / conf 0.44 / на старшем таймфрейме выраженного reversion-сигнала нет) Tj ET
+1.000 1.000 1.000 rg
+0.850 0.850 0.850 RG
+50 225 495 64 re B
+BT /F2 13 Tf 60 269 Td (breakout) Tj ET
+BT /F1 10 Tf 60 253 Td (1m: watch_breakout / conf 0.47 / риск ложного пробоя высокий, нужен фильтр подтверждения) Tj ET
+BT /F1 10 Tf 60 241 Td (5m: conditional_breakout_long / conf 0.54 / пробойный сценарий допустим только при) Tj ET
+BT /F1 10 Tf 60 229 Td (подтверждении объёмом) Tj ET
+BT /F1 10 Tf 60 217 Td (60m: neutral / conf 0.46 / подтверждения для старшего breakout-сценария недостаточно) Tj ET
+BT /F1 9 Tf 50 66 Td (Design note: current chart is based on strategy-confidence data from Ben_Kim analysis_result.) Tj ET
+BT /F1 9 Tf 50 52 Td (If Jack provides time-series candles, the next PDF version can include full price/volume charts.) Tj ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000000348 00000 n 
+0000000450 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+4609
+%%EOF
