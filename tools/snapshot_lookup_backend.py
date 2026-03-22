@@ -673,6 +673,30 @@ class SnapshotLookupBackend:
 
                 cur.execute(
                     """
+                    SELECT endpoint,
+                           COUNT(*) AS request_count,
+                           MAX(created_at_utc) AS last_request_at
+                    FROM collector.snapshot_access_log
+                    GROUP BY endpoint
+                    ORDER BY request_count DESC, endpoint ASC
+                    """
+                )
+                by_endpoint = cur.fetchall()
+
+                cur.execute(
+                    """
+                    SELECT request_status,
+                           COUNT(*) AS request_count,
+                           MAX(created_at_utc) AS last_request_at
+                    FROM collector.snapshot_access_log
+                    GROUP BY request_status
+                    ORDER BY request_count DESC, request_status ASC
+                    """
+                )
+                by_status = cur.fetchall()
+
+                cur.execute(
+                    """
                     SELECT COALESCE(nickname, 'anonymous') AS nickname,
                            snapshot_id,
                            endpoint,
@@ -688,6 +712,8 @@ class SnapshotLookupBackend:
         return {
             'snapshot_summary': self._normalize_row(summary) if summary else None,
             'by_user': [self._normalize_row(x) for x in by_user],
+            'by_endpoint': [self._normalize_row(x) for x in by_endpoint],
+            'by_status': [self._normalize_row(x) for x in by_status],
             'recent_requests': [self._normalize_row(x) for x in recent],
         }
 

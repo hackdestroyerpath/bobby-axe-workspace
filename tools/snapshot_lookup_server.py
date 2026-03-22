@@ -110,6 +110,14 @@ HTML_PAGE = """<!doctype html>
           <pre id="statsByUserPre"></pre>
         </div>
         <div class="card" style="margin-top:12px; background:#0f1530;">
+          <h4 style="margin-top:0;">By Endpoint</h4>
+          <pre id="statsByEndpointPre"></pre>
+        </div>
+        <div class="card" style="margin-top:12px; background:#0f1530;">
+          <h4 style="margin-top:0;">By Status</h4>
+          <pre id="statsByStatusPre"></pre>
+        </div>
+        <div class="card" style="margin-top:12px; background:#0f1530;">
           <h4 style="margin-top:0;">Recent Requests</h4>
           <pre id="statsRecentPre"></pre>
         </div>
@@ -227,6 +235,8 @@ async function lookup() {
     last_request_at: x.last_request_at || null,
     snapshot_last_request_at: x.snapshot_last_request_at || null,
   })), null, 2);
+  document.getElementById('statsByEndpointPre').textContent = JSON.stringify(stats.by_endpoint || [], null, 2);
+  document.getElementById('statsByStatusPre').textContent = JSON.stringify(stats.by_status || [], null, 2);
   document.getElementById('statsRecentPre').textContent = JSON.stringify(stats.recent_requests || [], null, 2);
   document.getElementById('refreshState').textContent = 'Updated: ' + new Date().toLocaleTimeString();
 }
