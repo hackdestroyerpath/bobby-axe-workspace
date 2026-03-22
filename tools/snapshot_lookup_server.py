@@ -64,9 +64,6 @@ HTML_PAGE = """<!doctype html>
           </select>
         </div>
         <div class="col" style="flex:0; min-width:160px;">
-          <button id="lookupBtn">Lookup</button>
-        </div>
-        <div class="col" style="flex:0; min-width:160px;">
           <button id="refreshBtn">Refresh</button>
         </div>
       </div>
@@ -226,7 +223,6 @@ function setAutoRefresh(enabled) {
   }
 }
 
-document.getElementById('lookupBtn').addEventListener('click', lookup);
 document.getElementById('refreshBtn').addEventListener('click', lookup);
 document.getElementById('downloadJsonBtn').addEventListener('click', () => {
   const id = document.getElementById('snapshotId').value.trim();
