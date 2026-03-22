@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -469,7 +470,7 @@ class SnapshotLookupBackend:
             return None
         out = {}
         for k, v in dict(row).items():
-            out[k] = self._iso(v) if hasattr(v, 'isoformat') else v
+            out[k] = self._normalize_value(v)
         return out
 
     @staticmethod
@@ -479,6 +480,15 @@ class SnapshotLookupBackend:
         if hasattr(value, 'isoformat'):
             return value.isoformat().replace('+00:00', 'Z')
         return str(value)
+
+    def _normalize_value(self, value: Any):
+        if value is None:
+            return None
+        if isinstance(value, Decimal):
+            return float(value)
+        if hasattr(value, 'isoformat'):
+            return self._iso(value)
+        return value
 
 
 if __name__ == '__main__':
