@@ -89,7 +89,8 @@ The object must align with `contracts/schemas/analysis_result.schema.json`.
 - `event_type`
 - `analysis_id`
 - `symbol`
-- `strategy`
+- `strategy_id`
+- `strategy_name`
 - `frame`
 - `signal`
 - `conclusion`
@@ -119,8 +120,11 @@ Stable identifier for idempotent write behavior.
 Ticker symbol, e.g.:
 - `BTCUSDC`
 
-### `strategy`
-Ben_Kim strategy identifier.
+### `strategy_id`
+Ben_Kim machine strategy identifier from canonical registry.
+
+### `strategy_name`
+Ben_Kim canonical display strategy name from canonical registry.
 
 ### `frame`
 Allowed values:
@@ -182,7 +186,8 @@ Optional structured payload with strategy-specific internals.
     "correlation_id": "snapshot_run_20260321T235503Z_c0a7cb5a",
     "producer": "Ben_Kim",
     "symbol": "BTCUSDC",
-    "strategy": "rsi_macd_cluster",
+    "strategy_id": "rsi_macd",
+    "strategy_name": "RSI + MACD",
     "frame": "1m",
     "signal": "bullish",
     "conclusion": "Momentum reversal forming with improving histogram slope.",
@@ -219,7 +224,8 @@ Optional structured payload with strategy-specific internals.
       "correlation_id": "snapshot_run_20260321T235503Z_c0a7cb5a",
       "producer": "Ben_Kim",
       "symbol": "BTCUSDC",
-      "strategy": "rsi_macd_cluster",
+      "strategy_id": "rsi_macd",
+    "strategy_name": "RSI + MACD",
       "frame": "1m",
       "signal": "bullish",
       "conclusion": "Momentum reversal forming.",

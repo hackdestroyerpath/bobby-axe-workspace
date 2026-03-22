@@ -402,6 +402,14 @@ class SnapshotLookupBackend:
 
 
 
+    def _get_strategy_registry_map(self, agent: str = 'Ben_Kim') -> dict[str, str]:
+        registry = self.get_strategy_registry(agent=agent)
+        return {
+            row['strategy_id']: row['strategy_name']
+            for row in registry.get('strategies', [])
+            if row.get('enabled')
+        }
+
     def _validate_analysis_write_request(self, request_json: dict[str, Any]) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         mode = request_json.get('mode')
         if mode not in ('single', 'batch'):
@@ -415,9 +423,10 @@ class SnapshotLookupBackend:
         if not items:
             raise ValueError('no analysis_result payloads provided')
 
-        required = ['event_type','analysis_id','symbol','strategy','frame','signal','conclusion','confidence','observed_at','source_window','status','result_code']
+        required = ['event_type','analysis_id','symbol','strategy_id','strategy_name','frame','signal','conclusion','confidence','observed_at','source_window','status','result_code']
         validated = []
         errors = []
+        strategy_map = self._get_strategy_registry_map('Ben_Kim')
 
         for item in items:
             obj = dict(item or {})
@@ -433,6 +442,16 @@ class SnapshotLookupBackend:
             if obj.get('event_type') != 'analysis_result':
                 errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'event_type must be analysis_result'})
                 continue
+
+            if obj.get('strategy_id') not in strategy_map:
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'strategy_id is not registered'})
+                continue
+
+            if obj.get('strategy_name') != strategy_map.get(obj.get('strategy_id')):
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'strategy_name does not match registered strategy_id'})
+                continue
+
+            obj['strategy'] = obj['strategy_id']
 
             if obj.get('frame') not in ('1m','5m','60m'):
                 errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'frame must be one of 1m,5m,60m'})
