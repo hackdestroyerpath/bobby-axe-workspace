@@ -372,26 +372,87 @@ class SnapshotLookupBackend:
         return {row['frame']: row for row in rows}
 
 
-    def write_analysis_results(self, request_json: dict[str, Any]) -> dict[str, Any]:
+
+    def _validate_analysis_write_request(self, request_json: dict[str, Any]) -> tuple[str, list[dict[str, Any]], dict[str, Any]]:
         mode = request_json.get('mode')
-        snapshot_id = request_json.get('snapshot_id')
-        correlation_id = request_json.get('correlation_id')
-        producer = request_json.get('producer')
+        if mode not in ('single', 'batch'):
+            raise ValueError('mode must be single or batch')
 
         if mode == 'single':
             items = [request_json.get('analysis_result')]
-        elif mode == 'batch':
-            items = request_json.get('analysis_results') or []
         else:
-            raise ValueError('unsupported write mode')
+            items = request_json.get('analysis_results') or []
 
         if not items:
             raise ValueError('no analysis_result payloads provided')
 
+        required = ['event_type','analysis_id','symbol','strategy','frame','signal','conclusion','confidence','observed_at','source_window','status','result_code']
+        validated = []
+        errors = []
+
+        for item in items:
+            obj = dict(item or {})
+            for inherited in ('snapshot_id', 'correlation_id', 'producer'):
+                if inherited not in obj and inherited in request_json:
+                    obj[inherited] = request_json[inherited]
+
+            missing = [k for k in required if k not in obj or obj[k] in (None, '')]
+            if missing:
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': f'missing fields: {missing}'})
+                continue
+
+            if obj.get('event_type') != 'analysis_result':
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'event_type must be analysis_result'})
+                continue
+
+            if obj.get('frame') not in ('1m','5m','60m'):
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'frame must be one of 1m,5m,60m'})
+                continue
+
+            if obj.get('signal') not in ('bullish','bearish','neutral','ignore'):
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'signal invalid'})
+                continue
+
+            if obj.get('status') not in ('ready','partial','rejected'):
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'status invalid'})
+                continue
+
+            if obj.get('result_code') not in ('ok','skipped','insufficient_data','error'):
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'result_code invalid'})
+                continue
+
+            try:
+                confidence = float(obj.get('confidence'))
+                if confidence < 0 or confidence > 1:
+                    raise ValueError
+                obj['confidence'] = confidence
+            except Exception:
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'confidence must be numeric in range 0..1'})
+                continue
+
+            sw = obj.get('source_window')
+            if not isinstance(sw, dict) or 'from' not in sw or 'to' not in sw:
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'source_window must contain from/to'})
+                continue
+
+            if not obj.get('snapshot_id'):
+                errors.append({'analysis_id': obj.get('analysis_id'), 'error_code': 'validation_error', 'message': 'snapshot_id is required'})
+                continue
+
+            validated.append(obj)
+
+        return mode, validated, {'snapshot_id': request_json.get('snapshot_id'), 'correlation_id': request_json.get('correlation_id'), 'producer': request_json.get('producer'), 'errors': errors, 'requested_count': len(items)}
+
+    def write_analysis_results(self, request_json: dict[str, Any]) -> dict[str, Any]:
+        mode, items, meta = self._validate_analysis_write_request(request_json)
+        snapshot_id = meta.get('snapshot_id')
+        correlation_id = meta.get('correlation_id')
+        producer = meta.get('producer')
+
         stored = 0
         updated = 0
-        rejected = 0
-        errors = []
+        rejected = len(meta['errors'])
+        errors = list(meta['errors'])
 
         upsert_sql = """
         INSERT INTO collector.analysis_results (
@@ -475,7 +536,7 @@ class SnapshotLookupBackend:
 
         return {
             'status': 'ok' if rejected == 0 else ('partial' if stored or updated else 'error'),
-            'accepted_count': len(items),
+            'accepted_count': meta['requested_count'],
             'stored_count': stored,
             'updated_count': updated,
             'rejected_count': rejected,
