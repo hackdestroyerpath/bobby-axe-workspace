@@ -124,6 +124,10 @@ class MainWindow(QMainWindow):
 
         self.add_btn = QPushButton("Add Session")
         self.add_btn.clicked.connect(self.add_session)
+        self.import_btn = QPushButton("Import Profiles")
+        self.import_btn.clicked.connect(self.import_profiles)
+        self.export_btn = QPushButton("Export Profiles")
+        self.export_btn.clicked.connect(self.export_profiles)
         self.duplicate_btn = QPushButton("Duplicate")
         self.duplicate_btn.clicked.connect(self.duplicate_session)
         self.delete_btn = QPushButton("Delete")
@@ -160,6 +164,8 @@ class MainWindow(QMainWindow):
 
         row = QHBoxLayout()
         row.addWidget(self.add_btn)
+        row.addWidget(self.import_btn)
+        row.addWidget(self.export_btn)
         row.addWidget(self.duplicate_btn)
         row.addWidget(self.delete_btn)
         row.addWidget(self.reconnect_btn)
@@ -262,6 +268,42 @@ class MainWindow(QMainWindow):
                     self.info_box.append(f"[err] auto-start failed: {s.name}: {exc}")
         self.save_sessions()
         self.refresh_list()
+
+    def export_profiles(self) -> None:
+        export_path = APP_DIR / "sessions.export.json"
+        export_path.write_text(json.dumps([asdict(x) for x in self.sessions], indent=2))
+        self.info_box.append(f"[ok] exported profiles to {export_path.name}")
+
+    def import_profiles(self) -> None:
+        import_path = APP_DIR / "sessions.import.json"
+        if not import_path.exists():
+            self.info_box.append(f"[warn] import file not found: {import_path.name}")
+            return
+        try:
+            data = json.loads(import_path.read_text())
+            imported = []
+            for item in data:
+                imported.append(SessionProfile(
+                    name=item.get('name', 'Imported Session'),
+                    command=item.get('command', 'powershell -NoExit'),
+                    status='inactive',
+                    notes=item.get('notes', ''),
+                    shell_type=item.get('shell_type', 'powershell'),
+                    auto_start=bool(item.get('auto_start', False)),
+                    last_error='',
+                    launch_count=0,
+                    last_launch_ok=False,
+                    process_id=None,
+                    last_seen_ts=0.0,
+                    state_hint='imported',
+                ))
+            self.sessions = imported
+            self.save_sessions()
+            self.refresh_list()
+            self.list_widget.setCurrentRow(0)
+            self.info_box.append(f"[ok] imported profiles from {import_path.name}")
+        except Exception as exc:
+            self.info_box.append(f"[err] import failed: {exc}")
 
     def add_session(self) -> None:
         profile = SessionProfile(name="New Session", command="powershell -NoExit")
