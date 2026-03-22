@@ -291,6 +291,18 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
             self._send_json(result)
             return
 
+        if parsed.path == '/strategies':
+            params = parse_qs(parsed.query)
+            agent = (params.get('agent') or ['Ben_Kim'])[0].strip() or 'Ben_Kim'
+            if not client_ctx['allowed']:
+                self._log_access(client_ctx, None, None, None, 'strategies', 'denied')
+                self._send_json({'error': 'unauthorized'}, status=HTTPStatus.UNAUTHORIZED)
+                return
+            result = self.backend.get_strategy_registry(agent=agent)
+            self._log_access(client_ctx, None, None, None, 'strategies', 'ok')
+            self._send_json(result)
+            return
+
         if parsed.path == '/lookup':
             params = parse_qs(parsed.query)
             snapshot_id = (params.get('snapshot_id') or [''])[0].strip()
@@ -371,6 +383,7 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
                     'health': '/health',
                     'lookup': '/lookup?snapshot_id=<snapshot_id>',
                     'payload': '/payload?snapshot_id=<snapshot_id>&symbol=<symbol>',
+                    'strategies': '/strategies?agent=Ben_Kim',
                     'analysis_write': 'POST /analysis/write',
                 },
             },

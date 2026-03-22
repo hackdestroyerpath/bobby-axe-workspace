@@ -88,6 +88,34 @@ class SnapshotLookupBackend:
     def __init__(self, db: Database | None = None):
         self.db = db or Database(get_settings().database_url)
 
+    def get_strategy_registry(self, agent: str = 'Ben_Kim') -> dict[str, Any]:
+        with self.db.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT agent, strategy_id, strategy_name, enabled, sort_order, metadata_json
+                    FROM collector.strategy_registry
+                    WHERE agent = %s
+                    ORDER BY sort_order, strategy_id
+                    """,
+                    (agent,),
+                )
+                rows = cur.fetchall()
+        return {
+            'agent': agent,
+            'strategy_count': len(rows),
+            'strategies': [
+                {
+                    'strategy_id': row['strategy_id'],
+                    'strategy_name': row['strategy_name'],
+                    'enabled': row['enabled'],
+                    'sort_order': row['sort_order'],
+                    'metadata': row['metadata_json'] or {},
+                }
+                for row in rows
+            ],
+        }
+
     def resolve_snapshot(self, snapshot_id: str, selected_symbol: str | None = None) -> dict[str, Any]:
         response = _base_response(snapshot_id)
 
