@@ -400,12 +400,15 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
             params = parse_qs(parsed.query)
             snapshot_id = (params.get('snapshot_id') or [''])[0].strip() or None
             if not client_ctx['allowed']:
+                self._log_access(client_ctx, snapshot_id, None, None, 'stats', 'denied')
                 self._send_json({'error': 'unauthorized'}, status=HTTPStatus.UNAUTHORIZED)
                 return
+            self._log_access(client_ctx, snapshot_id, None, None, 'stats', 'ok')
             self._send_json(self.backend.get_access_stats(snapshot_id=snapshot_id))
             return
 
         if parsed.path == '/':
+            self._log_access(client_ctx, None, None, None, 'ui_shell', 'ok' if client_ctx['allowed'] else 'anonymous')
             self._send_html(HTML_PAGE)
             return
 
