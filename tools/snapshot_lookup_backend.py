@@ -505,12 +505,12 @@ class SnapshotLookupBackend:
         upsert_sql = """
         INSERT INTO collector.analysis_results (
             analysis_id, snapshot_id, correlation_id, producer, event_type,
-            symbol, strategy, frame, signal, conclusion, confidence,
+            symbol, strategy, strategy_id, strategy_name, frame, signal, conclusion, confidence,
             observed_at, source_window_from, source_window_to,
             status, result_code, details_json, created_at_utc, updated_at_utc
         ) VALUES (
             %(analysis_id)s, %(snapshot_id)s, %(correlation_id)s, %(producer)s, %(event_type)s,
-            %(symbol)s, %(strategy)s, %(frame)s, %(signal)s, %(conclusion)s, %(confidence)s,
+            %(symbol)s, %(strategy)s, %(strategy_id)s, %(strategy_name)s, %(frame)s, %(signal)s, %(conclusion)s, %(confidence)s,
             %(observed_at)s, %(source_window_from)s, %(source_window_to)s,
             %(status)s, %(result_code)s, %(details_json)s, NOW(), NOW()
         )
@@ -522,6 +522,8 @@ class SnapshotLookupBackend:
             event_type = EXCLUDED.event_type,
             symbol = EXCLUDED.symbol,
             strategy = EXCLUDED.strategy,
+            strategy_id = EXCLUDED.strategy_id,
+            strategy_name = EXCLUDED.strategy_name,
             frame = EXCLUDED.frame,
             signal = EXCLUDED.signal,
             conclusion = EXCLUDED.conclusion,
@@ -551,6 +553,8 @@ class SnapshotLookupBackend:
                             'event_type': obj['event_type'],
                             'symbol': obj['symbol'],
                             'strategy': obj['strategy'],
+                            'strategy_id': obj['strategy_id'],
+                            'strategy_name': obj['strategy_name'],
                             'frame': obj['frame'],
                             'signal': obj['signal'],
                             'conclusion': obj['conclusion'],
