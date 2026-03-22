@@ -55,8 +55,11 @@ HTML_PAGE = """<!doctype html>
       <h1>Snapshot Lookup</h1>
       <p>Enter a <code>snapshot_id</code>. All dependent fields are resolved automatically.</p>
       <div class="row">
-        <div class="col" style="flex:3; min-width:400px;">
+        <div class="col" style="flex:2; min-width:320px;">
           <input id="snapshotId" type="text" placeholder="snapshot_id / bundle_id / correlation_id" />
+        </div>
+        <div class="col" style="flex:1.3; min-width:260px;">
+          <input id="apiKey" type="password" placeholder="API Key" />
         </div>
         <div class="col" style="flex:1; min-width:220px;">
           <select id="selectedSymbol" style="width:100%; padding:12px; border-radius:8px; border:1px solid #3a4a8a; background:#0f1530; color:#fff;">
@@ -128,12 +131,31 @@ function statusClass(v) {
 }
 let autoTimer = null;
 
+function authHeaders() {
+  const key = document.getElementById('apiKey').value.trim();
+  const headers = {};
+  if (key) headers['X-API-Key'] = key;
+  return headers;
+}
+
+function persistApiKey() {
+  try { localStorage.setItem('snapshotLookupApiKey', document.getElementById('apiKey').value); } catch {}
+}
+
+function loadApiKey() {
+  try {
+    const v = localStorage.getItem('snapshotLookupApiKey');
+    if (v) document.getElementById('apiKey').value = v;
+  } catch {}
+}
+
 async function lookup() {
   const id = document.getElementById('snapshotId').value.trim();
   const symbol = document.getElementById('selectedSymbol').value.trim();
   if (!id) return;
   document.getElementById('refreshState').textContent = 'Loading...';
-  const res = await fetch(`/lookup?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`);
+  persistApiKey();
+  const res = await fetch(`/lookup?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`, { headers: authHeaders() });
   const data = await res.json();
   document.getElementById('result').classList.remove('hidden');
 
@@ -190,7 +212,7 @@ async function lookup() {
 
   document.getElementById('artifactsPre').textContent = JSON.stringify(data.artifacts || {}, null, 2);
   document.getElementById('notesPre').textContent = JSON.stringify({errors: data.errors || [], notes: data.notes || []}, null, 2);
-  const statsRes = await fetch(`/stats?snapshot_id=${encodeURIComponent(id)}`);
+  const statsRes = await fetch(`/stats?snapshot_id=${encodeURIComponent(id)}`, { headers: authHeaders() });
   const stats = await statsRes.json();
   const summary = stats.snapshot_summary || {};
   document.getElementById('statsSummaryGrid').innerHTML = [
@@ -228,18 +250,21 @@ document.getElementById('downloadJsonBtn').addEventListener('click', () => {
   const id = document.getElementById('snapshotId').value.trim();
   const symbol = document.getElementById('selectedSymbol').value.trim();
   if (!id) return;
-  window.open(`/lookup/download?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`, '_blank');
+  document.getElementById('refreshState').textContent = 'Download endpoint requires API key via direct request; use Refresh/Save inside UI.';
 });
 document.getElementById('saveJsonBtn').addEventListener('click', async () => {
   const id = document.getElementById('snapshotId').value.trim();
   const symbol = document.getElementById('selectedSymbol').value.trim();
   if (!id) return;
   document.getElementById('refreshState').textContent = 'Saving...';
-  const res = await fetch(`/lookup/save?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`);
+  persistApiKey();
+  const res = await fetch(`/lookup/save?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`, { headers: authHeaders() });
   const data = await res.json();
   document.getElementById('refreshState').textContent = data.saved_to ? `Saved: ${data.saved_to}` : 'Save failed';
 });
 document.getElementById('autoRefresh').addEventListener('change', (e) => setAutoRefresh(e.target.checked));
+document.getElementById('apiKey').addEventListener('change', persistApiKey);
+loadApiKey();
 document.getElementById('snapshotId').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') lookup();
 });
