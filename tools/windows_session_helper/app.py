@@ -124,6 +124,10 @@ class MainWindow(QMainWindow):
 
         self.add_btn = QPushButton("Add Session")
         self.add_btn.clicked.connect(self.add_session)
+        self.duplicate_btn = QPushButton("Duplicate")
+        self.duplicate_btn.clicked.connect(self.duplicate_session)
+        self.delete_btn = QPushButton("Delete")
+        self.delete_btn.clicked.connect(self.delete_session)
         self.reconnect_btn = QPushButton("Connect / Reconnect")
         self.reconnect_btn.clicked.connect(self.reconnect_selected)
         self.mark_inactive_btn = QPushButton("Mark Inactive")
@@ -156,6 +160,8 @@ class MainWindow(QMainWindow):
 
         row = QHBoxLayout()
         row.addWidget(self.add_btn)
+        row.addWidget(self.duplicate_btn)
+        row.addWidget(self.delete_btn)
         row.addWidget(self.reconnect_btn)
         row.addWidget(self.mark_inactive_btn)
         row.addWidget(self.edit_btn)
@@ -241,6 +247,41 @@ class MainWindow(QMainWindow):
             self.refresh_list()
             self.list_widget.setCurrentRow(len(self.sessions) - 1)
             self.info_box.append(f"[ok] added session: {new_profile.name}")
+
+    def duplicate_session(self) -> None:
+        s = self.sessions[self.selected_index]
+        clone = SessionProfile(
+            name=f"{s.name} Copy",
+            command=s.command,
+            status='inactive',
+            notes=s.notes,
+            shell_type=s.shell_type,
+            auto_start=False,
+            last_error='',
+            launch_count=0,
+            last_launch_ok=False,
+            process_id=None,
+            last_seen_ts=0.0,
+            state_hint='unknown',
+        )
+        self.sessions.append(clone)
+        self.save_sessions()
+        self.refresh_list()
+        self.list_widget.setCurrentRow(len(self.sessions) - 1)
+        self.info_box.append(f"[ok] duplicated session: {clone.name}")
+
+    def delete_session(self) -> None:
+        if not self.sessions:
+            return
+        s = self.sessions[self.selected_index]
+        if len(self.sessions) == 1:
+            QMessageBox.information(self, "Cannot delete", "At least one session profile should remain.")
+            return
+        del self.sessions[self.selected_index]
+        self.save_sessions()
+        self.refresh_list()
+        self.list_widget.setCurrentRow(max(0, self.selected_index - 1))
+        self.info_box.append(f"[ok] deleted session: {s.name}")
 
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
