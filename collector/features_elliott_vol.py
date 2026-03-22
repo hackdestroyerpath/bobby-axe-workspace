@@ -29,7 +29,6 @@ WITH base AS (
         ROW_NUMBER() OVER (PARTITION BY symbol, frame ORDER BY observed_at) AS rn
     FROM collector.feature_base_tf
     WHERE symbol = %(symbol)s
-      AND observed_at >= %(start_at)s
       AND observed_at < %(end_at)s
 ), tr_stage AS (
     SELECT
@@ -96,8 +95,8 @@ WITH base AS (
         symbol,
         frame,
         observed_at,
-        CASE WHEN rn >= 30 THEN 'ready' ELSE 'partial' END AS feature_status,
-        CASE WHEN rn >= 30 THEN 'ok' ELSE 'insufficient_data' END AS result_code,
+        CASE WHEN rn >= 20 THEN 'ready' ELSE 'partial' END AS feature_status,
+        CASE WHEN rn >= 20 THEN 'ok' ELSE 'insufficient_data' END AS result_code,
         elliott_direction,
         elliott_pattern_family,
         elliott_candidate_wave,
@@ -176,6 +175,8 @@ SELECT
     swing_size_to_atr_last, structure_total_move_atr, pullback_depth_atr, breakout_bar_range_atr, impulse_efficiency_ratio,
     NOW()
 FROM calc
+WHERE observed_at >= %(start_at)s
+  AND observed_at < %(end_at)s
 ON CONFLICT (symbol, frame, observed_at)
 DO UPDATE SET
     feature_status = EXCLUDED.feature_status,
