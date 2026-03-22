@@ -1,0 +1,73 @@
+{
+  "handoff": {
+    "to_agents": [
+      "Ben_Kim",
+      "Jusetta",
+      "Igor"
+    ],
+    "from_agent": "Jack",
+    "handoff_status": "created",
+    "handoff_created_at_utc": "2026-03-21T23:48:48.371491Z"
+  },
+  "symbols": [
+    {
+      "status": "ready",
+      "symbol": "BTCUSDC",
+      "raw_ref": {
+        "table": "collector.raw_trades",
+        "max_ts": "2026-03-22 02:48:21.130000+03:00",
+        "min_ts": "2026-03-19 02:48:48.620000+03:00",
+        "row_count": 1141352,
+        "window_to_utc": "2026-03-21 23:48:48.371491+00:00",
+        "window_from_utc": "2026-03-18 23:48:48.371491+00:00"
+      },
+      "feature_ref": {
+        "1m": {
+          "table": "collector.feature_packet_tf",
+          "row_count": 577,
+          "ready_rows": 548,
+          "partial_rows": 29,
+          "latest_observed_at": "2026-03-22 00:19:34+03:00"
+        },
+        "5m": {
+          "table": "collector.feature_packet_tf",
+          "row_count": 9,
+          "ready_rows": 0,
+          "partial_rows": 9,
+          "latest_observed_at": "2026-03-22 00:15:00+03:00"
+        },
+        "60m": {
+          "table": "collector.feature_packet_tf",
+          "row_count": 1,
+          "ready_rows": 0,
+          "partial_rows": 1,
+          "latest_observed_at": "2026-03-22 00:00:00+03:00"
+        }
+      },
+      "aggregate_ref": {
+        "table": "collector.second_bar",
+        "max_ts": "2026-03-22 02:48:21+03:00",
+        "min_ts": "2026-03-19 02:48:49+03:00",
+        "row_count": 59128
+      }
+    }
+  ],
+  "envelope": {
+    "as_of_utc": "2026-03-21T23:48:48.371491Z",
+    "bundle_id": "snapshot_20260321T234848Z_1851b6be",
+    "bundle_type": "snapshot_bundle",
+    "window_to_utc": "2026-03-21T23:48:48.371491Z",
+    "bundle_version": "v1",
+    "correlation_id": "snapshot_run_demo_001",
+    "created_at_utc": "2026-03-21T23:48:48.371491Z",
+    "producer_agent": "Jack",
+    "producer_stage": "stage0_snapshot",
+    "window_from_utc": "2026-03-18T23:48:48.371491Z"
+  },
+  "universe_summary": {
+    "ready_count": 1,
+    "missing_count": 0,
+    "partial_count": 0,
+    "universe_count": 1
+  }
+}
