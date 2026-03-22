@@ -251,7 +251,13 @@ async function lookup() {
     last_request_at: x.last_request_at || null,
     snapshot_last_request_at: x.snapshot_last_request_at || null,
   })), null, 2);
-  document.getElementById('statsByEndpointPre').textContent = JSON.stringify(stats.by_endpoint || [], null, 2);
+  const endpointTotal = (stats.by_endpoint || []).reduce((acc, x) => acc + Number(x.request_count ?? 0), 0);
+  document.getElementById('statsByEndpointPre').textContent = JSON.stringify((stats.by_endpoint || []).map(x => ({
+    endpoint: x.endpoint,
+    request_count: x.request_count ?? 0,
+    share_pct: endpointTotal > 0 ? Number((100 * Number(x.request_count ?? 0) / endpointTotal).toFixed(1)) : 0,
+    last_request_at: x.last_request_at || null,
+  })), null, 2);
   document.getElementById('statsByStatusPre').textContent = JSON.stringify(stats.by_status || [], null, 2);
   document.getElementById('statsRecentPre').textContent = JSON.stringify(stats.recent_requests || [], null, 2);
   document.getElementById('refreshState').textContent = 'Updated: ' + new Date().toLocaleTimeString();
