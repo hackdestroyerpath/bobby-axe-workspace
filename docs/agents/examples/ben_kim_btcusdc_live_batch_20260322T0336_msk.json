@@ -1,0 +1,333 @@
+{
+  "event_type": "analysis_result_batch",
+  "correlation_id": "corr_btcusdc_live_20260322T033631_MSK",
+  "requested_at": "2026-03-22T03:36:31+03:00",
+  "producer": "Ben_Kim",
+  "tickers": ["BTCUSDC"],
+  "timeframes": ["1m", "5m", "60m"],
+  "strategies": [
+    "price_levels_fibo_horizontal_volume",
+    "vertical_volume",
+    "rsi_macd",
+    "trade_speed",
+    "added_later_placeholder",
+    "elliott_waves"
+  ],
+  "expected_results": 18,
+  "results": [
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_price_levels_fibo_horizontal_volume_20260322T032800_1m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "price_levels_fibo_horizontal_volume",
+      "frame": "1m",
+      "signal": "neutral",
+      "conclusion": "Цена находится вблизи зоны POC/Fibo 0.5 около 68769; явного преимущества у покупателей нет, минутный контекст нейтральный с локальным давлением вниз относительно объёмного центра.",
+      "confidence": 0.58,
+      "observed_at": "2026-03-22T03:28:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:28:00+03:00",
+        "to": "2026-03-22T03:28:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok",
+      "details": {
+        "packet_status": "ready",
+        "packet_result_code": "ok"
+      }
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_vertical_volume_20260322T032800_1m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "vertical_volume",
+      "frame": "1m",
+      "signal": "neutral",
+      "conclusion": "Вертикальный объём ниже среднего, а дельта почти нейтральна; минутное движение не подтверждается сильным объёмным импульсом.",
+      "confidence": 0.54,
+      "observed_at": "2026-03-22T03:28:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:28:00+03:00",
+        "to": "2026-03-22T03:28:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_rsi_macd_20260322T032800_1m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "rsi_macd",
+      "frame": "1m",
+      "signal": "bullish",
+      "conclusion": "RSI около 59 и MACD выше сигнальной линии при положительной гистограмме; краткосрочный momentum умеренно бычий.",
+      "confidence": 0.70,
+      "observed_at": "2026-03-22T03:28:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:28:00+03:00",
+        "to": "2026-03-22T03:28:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_trade_speed_20260322T032800_1m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "trade_speed",
+      "frame": "1m",
+      "signal": "bearish",
+      "conclusion": "Скорость сделок заметно ниже средней, ускорения потока нет; импульс по активности не подтверждён.",
+      "confidence": 0.63,
+      "observed_at": "2026-03-22T03:28:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:28:00+03:00",
+        "to": "2026-03-22T03:28:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_added_later_placeholder_20260322T032800_1m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "added_later_placeholder",
+      "frame": "1m",
+      "signal": "ignore",
+      "conclusion": "Стратегия пока не реализована; вывод не формируется.",
+      "confidence": 0,
+      "observed_at": "2026-03-22T03:28:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:28:00+03:00",
+        "to": "2026-03-22T03:28:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "skipped"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_elliott_waves_20260322T032800_1m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "elliott_waves",
+      "frame": "1m",
+      "signal": "neutral",
+      "conclusion": "Elliott-блок даёт слабый correction/unknown candidate с уверенностью 0.42; рабочей волновой структуры нет.",
+      "confidence": 0.42,
+      "observed_at": "2026-03-22T03:28:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:28:00+03:00",
+        "to": "2026-03-22T03:28:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_price_levels_fibo_horizontal_volume_20260322T033000_5m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "price_levels_fibo_horizontal_volume",
+      "frame": "5m",
+      "signal": "ignore",
+      "conclusion": "Текущий 5m packet имеет статус partial; блока уровней, Фибо и горизонтального объёма недостаточно для надёжного вывода.",
+      "confidence": 0,
+      "observed_at": "2026-03-22T03:30:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:30:00+03:00",
+        "to": "2026-03-22T03:30:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "insufficient_data",
+      "details": {
+        "packet_status": "partial",
+        "packet_result_code": "partial"
+      }
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_vertical_volume_20260322T033000_5m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "vertical_volume",
+      "frame": "5m",
+      "signal": "bearish",
+      "conclusion": "Пятиминутный бар закрылся снижением на повышенном объёме с отрицательной дельтой; локально это выглядит как давление продавца, но пакет остаётся partial.",
+      "confidence": 0.61,
+      "observed_at": "2026-03-22T03:30:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:30:00+03:00",
+        "to": "2026-03-22T03:30:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "insufficient_data"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_rsi_macd_20260322T033000_5m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "rsi_macd",
+      "frame": "5m",
+      "signal": "ignore",
+      "conclusion": "В актуальном 5m packet индикаторный блок отсутствует или неполон; по RSI+MACD надёжный вывод не подтверждён.",
+      "confidence": 0,
+      "observed_at": "2026-03-22T03:30:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:30:00+03:00",
+        "to": "2026-03-22T03:30:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "insufficient_data"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_trade_speed_20260322T033000_5m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "trade_speed",
+      "frame": "5m",
+      "signal": "ignore",
+      "conclusion": "В актуальном 5m packet метрики trade speed отсутствуют или неполны; пятиминутный вывод по скорости сделок пока partial.",
+      "confidence": 0,
+      "observed_at": "2026-03-22T03:30:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:30:00+03:00",
+        "to": "2026-03-22T03:30:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "insufficient_data"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_added_later_placeholder_20260322T033000_5m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "added_later_placeholder",
+      "frame": "5m",
+      "signal": "ignore",
+      "conclusion": "Стратегия пока не реализована; вывод не формируется.",
+      "confidence": 0,
+      "observed_at": "2026-03-22T03:30:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:30:00+03:00",
+        "to": "2026-03-22T03:30:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "skipped"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_elliott_waves_20260322T033000_5m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "elliott_waves",
+      "frame": "5m",
+      "signal": "neutral",
+      "conclusion": "Elliott-блок показывает neutral correction unknown с низкой уверенностью 0.42; пятиминутная волновая картина не даёт рабочего сценария.",
+      "confidence": 0.42,
+      "observed_at": "2026-03-22T03:30:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:30:00+03:00",
+        "to": "2026-03-22T03:30:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "insufficient_data"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_price_levels_fibo_horizontal_volume_20260322T030000_60m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "price_levels_fibo_horizontal_volume",
+      "frame": "60m",
+      "signal": "bearish",
+      "conclusion": "Цена находится ниже POC около 69924 и ниже ближайшего Fibo 0.786 после часового снижения; старший контекст остаётся под давлением.",
+      "confidence": 0.73,
+      "observed_at": "2026-03-22T03:00:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:00:00+03:00",
+        "to": "2026-03-22T03:00:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_vertical_volume_20260322T030000_60m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "vertical_volume",
+      "frame": "60m",
+      "signal": "bearish",
+      "conclusion": "Часовой объём высокий, а дельта резко отрицательная; объём подтверждает доминирование продавца в старшем окне.",
+      "confidence": 0.80,
+      "observed_at": "2026-03-22T03:00:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:00:00+03:00",
+        "to": "2026-03-22T03:00:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_rsi_macd_20260322T030000_60m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "rsi_macd",
+      "frame": "60m",
+      "signal": "neutral",
+      "conclusion": "RSI около 37.7 у нижней части нейтральной зоны, но MACD-гистограмма положительная и растёт; старший импульс остаётся слабым с признаками стабилизации.",
+      "confidence": 0.64,
+      "observed_at": "2026-03-22T03:00:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:00:00+03:00",
+        "to": "2026-03-22T03:00:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_trade_speed_20260322T030000_60m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "trade_speed",
+      "frame": "60m",
+      "signal": "neutral",
+      "conclusion": "Скорость сделок выше средней, но buy-side уступает sell-side; активность повышенная, однако поток пока не разворачивает старшее давление вниз.",
+      "confidence": 0.61,
+      "observed_at": "2026-03-22T03:00:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:00:00+03:00",
+        "to": "2026-03-22T03:00:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_added_later_placeholder_20260322T030000_60m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "added_later_placeholder",
+      "frame": "60m",
+      "signal": "ignore",
+      "conclusion": "Стратегия пока не реализована; вывод не формируется.",
+      "confidence": 0,
+      "observed_at": "2026-03-22T03:00:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:00:00+03:00",
+        "to": "2026-03-22T03:00:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "skipped"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_elliott_waves_20260322T030000_60m_live",
+      "symbol": "BTCUSDC",
+      "strategy": "elliott_waves",
+      "frame": "60m",
+      "signal": "neutral",
+      "conclusion": "Elliott-блок даёт correction unknown с низкой уверенностью 0.42; на 60m читается только коррекционная фаза без завершённого разворотного паттерна.",
+      "confidence": 0.42,
+      "observed_at": "2026-03-22T03:00:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T03:00:00+03:00",
+        "to": "2026-03-22T03:00:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    }
+  ]
+}
