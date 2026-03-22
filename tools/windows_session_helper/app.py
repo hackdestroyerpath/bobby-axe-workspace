@@ -145,6 +145,8 @@ class MainWindow(QMainWindow):
         self.command_input.setFixedHeight(100)
         self.send_btn = QPushButton("Send to Selected")
         self.send_btn.clicked.connect(self.send_command)
+        self.clear_log_btn = QPushButton("Clear Log")
+        self.clear_log_btn.clicked.connect(self.clear_log)
 
         self.info_box = QTextEdit()
         self.info_box.setReadOnly(True)
@@ -175,7 +177,10 @@ class MainWindow(QMainWindow):
         right.addSpacing(16)
         right.addWidget(QLabel("Shared command input (sent to selected target)"))
         right.addWidget(self.command_input)
-        right.addWidget(self.send_btn)
+        cmd_row = QHBoxLayout()
+        cmd_row.addWidget(self.send_btn)
+        cmd_row.addWidget(self.clear_log_btn)
+        right.addLayout(cmd_row)
         right.addSpacing(16)
         right.addWidget(QLabel("Operator log"))
         right.addWidget(self.info_box)
@@ -257,7 +262,7 @@ class MainWindow(QMainWindow):
                     s.process_id = getattr(proc, 'pid', None)
                     s.last_seen_ts = time.time()
                     s.state_hint = 'auto_started'
-                    self.info_box.append(f"[ok] auto-started: {s.name} | pid={s.process_id}")
+                    self.append_log(f"[ok] auto-started: {s.name} | pid={s.process_id}")
                 except Exception as exc:
                     s.status = 'inactive'
                     s.last_error = str(exc)
@@ -265,19 +270,27 @@ class MainWindow(QMainWindow):
                     s.last_launch_ok = False
                     s.process_id = None
                     s.state_hint = 'auto_start_failed'
-                    self.info_box.append(f"[err] auto-start failed: {s.name}: {exc}")
+                    self.append_log(f"[err] auto-start failed: {s.name}: {exc}")
         self.save_sessions()
         self.refresh_list()
+
+    def append_log(self, text: str) -> None:
+        ts = time.strftime('%H:%M:%S')
+        self.append_log(f"[{ts}] {text}")
+
+    def clear_log(self) -> None:
+        self.info_box.clear()
+        self.append_log('log cleared')
 
     def export_profiles(self) -> None:
         export_path = APP_DIR / "sessions.export.json"
         export_path.write_text(json.dumps([asdict(x) for x in self.sessions], indent=2))
-        self.info_box.append(f"[ok] exported profiles to {export_path.name}")
+        self.append_log(f"[ok] exported profiles to {export_path.name}")
 
     def import_profiles(self) -> None:
         import_path = APP_DIR / "sessions.import.json"
         if not import_path.exists():
-            self.info_box.append(f"[warn] import file not found: {import_path.name}")
+            self.append_log(f"[warn] import file not found: {import_path.name}")
             return
         try:
             data = json.loads(import_path.read_text())
@@ -301,9 +314,9 @@ class MainWindow(QMainWindow):
             self.save_sessions()
             self.refresh_list()
             self.list_widget.setCurrentRow(0)
-            self.info_box.append(f"[ok] imported profiles from {import_path.name}")
+            self.append_log(f"[ok] imported profiles from {import_path.name}")
         except Exception as exc:
-            self.info_box.append(f"[err] import failed: {exc}")
+            self.append_log(f"[err] import failed: {exc}")
 
     def add_session(self) -> None:
         profile = SessionProfile(name="New Session", command="powershell -NoExit")
@@ -314,7 +327,7 @@ class MainWindow(QMainWindow):
             self.save_sessions()
             self.refresh_list()
             self.list_widget.setCurrentRow(len(self.sessions) - 1)
-            self.info_box.append(f"[ok] added session: {new_profile.name}")
+            self.append_log(f"[ok] added session: {new_profile.name}")
 
     def duplicate_session(self) -> None:
         s = self.sessions[self.selected_index]
@@ -336,7 +349,7 @@ class MainWindow(QMainWindow):
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(len(self.sessions) - 1)
-        self.info_box.append(f"[ok] duplicated session: {clone.name}")
+        self.append_log(f"[ok] duplicated session: {clone.name}")
 
     def delete_session(self) -> None:
         if not self.sessions:
@@ -349,7 +362,7 @@ class MainWindow(QMainWindow):
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(max(0, self.selected_index - 1))
-        self.info_box.append(f"[ok] deleted session: {s.name}")
+        self.append_log(f"[ok] deleted session: {s.name}")
 
     def reconnect_selected(self) -> None:
         s = self.sessions[self.selected_index]
@@ -363,7 +376,7 @@ class MainWindow(QMainWindow):
             s.process_id = getattr(proc, 'pid', None)
             s.last_seen_ts = time.time()
             s.state_hint = 'launched'
-            self.info_box.append(f"[ok] launched/reconnected: {s.name} | pid={s.process_id}")
+            self.append_log(f"[ok] launched/reconnected: {s.name} | pid={s.process_id}")
         except Exception as exc:
             s.status = "inactive"
             s.last_error = str(exc)
@@ -371,7 +384,7 @@ class MainWindow(QMainWindow):
             s.last_launch_ok = False
             s.process_id = None
             s.state_hint = 'launch_failed'
-            self.info_box.append(f"[err] failed to launch {s.name}: {exc}")
+            self.append_log(f"[err] failed to launch {s.name}: {exc}")
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
@@ -403,7 +416,7 @@ class MainWindow(QMainWindow):
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
-        self.info_box.append(f"[ok] marked inactive: {s.name}")
+        self.append_log(f"[ok] marked inactive: {s.name}")
 
     def edit_selected(self) -> None:
         s = self.sessions[self.selected_index]
@@ -413,7 +426,7 @@ class MainWindow(QMainWindow):
             self.save_sessions()
             self.refresh_list()
             self.list_widget.setCurrentRow(self.selected_index)
-            self.info_box.append(f"[ok] updated session: {self.sessions[self.selected_index].name}")
+            self.append_log(f"[ok] updated session: {self.sessions[self.selected_index].name}")
 
     def send_command(self) -> None:
         s = self.sessions[self.selected_index]
@@ -424,7 +437,7 @@ class MainWindow(QMainWindow):
 
         proc = self.process_handles.get(s.name)
         if not proc or proc.stdin is None:
-            self.info_box.append(f"[warn] session '{s.name}' is not managed yet; press Connect / Reconnect in helper first, then send command.")
+            self.append_log(f"[warn] session '{s.name}' is not managed yet; press Connect / Reconnect in helper first, then send command.")
             return
 
         try:
@@ -435,7 +448,7 @@ class MainWindow(QMainWindow):
             self.save_sessions()
             self.refresh_list()
             self.list_widget.setCurrentRow(self.selected_index)
-            self.info_box.append(f"[ok] sent to '{s.name}': {command}")
+            self.append_log(f"[ok] sent to '{s.name}': {command}")
             self.command_input.clear()
         except Exception as exc:
             s.last_error = str(exc)
@@ -443,7 +456,7 @@ class MainWindow(QMainWindow):
             self.save_sessions()
             self.refresh_list()
             self.list_widget.setCurrentRow(self.selected_index)
-            self.info_box.append(f"[err] failed send to '{s.name}': {exc}")
+            self.append_log(f"[err] failed send to '{s.name}': {exc}")
 
 
 def main() -> None:
