@@ -4,7 +4,7 @@ import json
 import subprocess
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -104,7 +104,7 @@ class SessionEditDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Boss Session Helper")
+        self.setWindowTitle("Boss Session Helper — Control Panel")
         self.resize(1000, 640)
         self.sessions = self.load_sessions()
         self.selected_index = 0
@@ -191,6 +191,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(right, 3)
         self.setCentralWidget(container)
 
+        self.append_log("helper started")
         self.refresh_list()
         self.list_widget.setCurrentRow(0)
         self.status_timer = QTimer(self)
@@ -330,6 +331,8 @@ class MainWindow(QMainWindow):
             self.append_log(f"[ok] added session: {new_profile.name}")
 
     def duplicate_session(self) -> None:
+        if not self.sessions:
+            return
         s = self.sessions[self.selected_index]
         clone = SessionProfile(
             name=f"{s.name} Copy",
@@ -354,6 +357,8 @@ class MainWindow(QMainWindow):
     def delete_session(self) -> None:
         if not self.sessions:
             return
+        if not self.sessions:
+            return
         s = self.sessions[self.selected_index]
         if len(self.sessions) == 1:
             QMessageBox.information(self, "Cannot delete", "At least one session profile should remain.")
@@ -365,6 +370,8 @@ class MainWindow(QMainWindow):
         self.append_log(f"[ok] deleted session: {s.name}")
 
     def reconnect_selected(self) -> None:
+        if not self.sessions:
+            return
         s = self.sessions[self.selected_index]
         try:
             proc = subprocess.Popen(s.command, shell=True, stdin=subprocess.PIPE, text=True)
@@ -409,6 +416,8 @@ class MainWindow(QMainWindow):
             self.list_widget.setCurrentRow(current)
 
     def mark_inactive(self) -> None:
+        if not self.sessions:
+            return
         s = self.sessions[self.selected_index]
         s.status = "inactive"
         s.process_id = None
@@ -419,6 +428,8 @@ class MainWindow(QMainWindow):
         self.append_log(f"[ok] marked inactive: {s.name}")
 
     def edit_selected(self) -> None:
+        if not self.sessions:
+            return
         s = self.sessions[self.selected_index]
         dlg = SessionEditDialog(s, self)
         if dlg.exec() == QDialog.Accepted:
