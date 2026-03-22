@@ -227,16 +227,21 @@ async function lookup() {
   const statsRes = await fetch(`/stats?snapshot_id=${encodeURIComponent(id)}`, { headers: authHeaders() });
   const stats = await statsRes.json();
   const summary = stats.snapshot_summary || {};
+  const totalRequestsAll = (stats.by_user || []).reduce((acc, x) => acc + Number(x.total_requests ?? x.request_count ?? 0), 0);
   document.getElementById('statsSummaryGrid').innerHTML = [
     metric('Snapshot requests', String(summary.request_count ?? 0)),
     metric('Unique users', String(summary.unique_users ?? 0)),
+    metric('Total requests (all)', String(totalRequestsAll)),
     metric('Last request', summary.last_request_at || '—'),
   ].join('');
   const canonicalTeam = ['BobbyAxe','Jack','BenKim','Jusetta','DollarBill','Maffi','BossIgor'];
   const byUser = stats.by_user || [];
+  const totalRequestsAll = byUser.reduce((acc, x) => acc + Number(x.total_requests ?? x.request_count ?? 0), 0);
   const teamCards = canonicalTeam.map(name => {
     const row = byUser.find(x => x.nickname === name) || {};
-    return metric(name, `total: ${row.total_requests ?? 0} | snapshot: ${row.snapshot_requests ?? 0} | last: ${row.last_request_at || '—'}`);
+    const total = Number(row.total_requests ?? row.request_count ?? 0);
+    const pct = totalRequestsAll > 0 ? ((100 * total) / totalRequestsAll).toFixed(1) : '0.0';
+    return metric(name, `total: ${total} | share: ${pct}% | snapshot: ${row.snapshot_requests ?? 0} | last: ${row.last_request_at || '—'}`);
   });
   document.getElementById('teamAccessGrid').innerHTML = teamCards.join('');
   document.getElementById('statsByUserPre').textContent = JSON.stringify((stats.by_user || []).map(x => ({
