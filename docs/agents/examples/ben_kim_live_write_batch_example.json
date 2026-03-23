@@ -1,0 +1,48 @@
+{
+  "mode": "batch",
+  "snapshot_id": "snapshot_20260321T235503Z_c0a7cb5a",
+  "correlation_id": "snapshot_run_20260321T235503Z_362a59f7",
+  "producer": "Ben_Kim",
+  "analysis_results": [
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_price_levels_fibo_horizontal_volume_20260322T025500_1m",
+      "snapshot_id": "snapshot_20260321T235503Z_c0a7cb5a",
+      "correlation_id": "snapshot_run_20260321T235503Z_362a59f7",
+      "symbol": "BTCUSDC",
+      "strategy_id": "price_levels_fibo_horizontal_volume",
+      "strategy_name": "Price Levels + Fibo + Horizontal Volume",
+      "frame": "1m",
+      "signal": "bearish",
+      "conclusion": "Price is below the nearest fib level and below the local value-area center; structure remains weak and does not show a confirmed reversal yet.",
+      "confidence": 0.64,
+      "observed_at": "2026-03-22T02:55:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T02:54:00+03:00",
+        "to": "2026-03-22T02:55:00+03:00"
+      },
+      "status": "ready",
+      "result_code": "ok"
+    },
+    {
+      "event_type": "analysis_result",
+      "analysis_id": "an_BTCUSDC_added_later_placeholder_20260322T025500_1m",
+      "snapshot_id": "snapshot_20260321T235503Z_c0a7cb5a",
+      "correlation_id": "snapshot_run_20260321T235503Z_362a59f7",
+      "symbol": "BTCUSDC",
+      "strategy_id": "added_later_placeholder",
+      "strategy_name": "Added Later Placeholder",
+      "frame": "1m",
+      "signal": "ignore",
+      "conclusion": "Placeholder strategy is not implemented for live analytical use; no canonical analytical conclusion is produced.",
+      "confidence": 0.1,
+      "observed_at": "2026-03-22T02:55:00+03:00",
+      "source_window": {
+        "from": "2026-03-22T02:54:00+03:00",
+        "to": "2026-03-22T02:55:00+03:00"
+      },
+      "status": "partial",
+      "result_code": "skipped"
+    }
+  ]
+}
