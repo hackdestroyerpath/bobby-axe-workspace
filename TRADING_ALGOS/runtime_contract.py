@@ -141,17 +141,24 @@ SUMMARY_POLICIES: Mapping[str, SummaryPolicy] = {
 }
 
 
+SANCTIONED_FAILURE_TEMPLATES: tuple[RuntimeErrorInfo, ...] = (
+    RuntimeErrorInfo("REQUEST_VALIDATION_FAILED", "Request schema validation failed.", "error", ERROR_SCOPE_INPUT, False),
+    RuntimeErrorInfo("RETENTION_WINDOW_TOO_SHALLOW", "Requested window exceeds retained history.", "warning", ERROR_SCOPE_READ, False),
+    RuntimeErrorInfo("PAGINATION_DRIFT", "Tick pagination did not produce a complete read.", "warning", ERROR_SCOPE_READ, True),
+    RuntimeErrorInfo("READ_TIMEOUT", "Upstream read timed out before the requested window was fetched.", "warning", ERROR_SCOPE_READ, True),
+    RuntimeErrorInfo("INPUT_GAP_DETECTED", "Gap-heavy input window detected.", "warning", ERROR_SCOPE_READ, True),
+    RuntimeErrorInfo("EMPTY_WINDOW", "No ticks were available inside the requested window.", "warning", ERROR_SCOPE_READ, False),
+    RuntimeErrorInfo("NORMALIZATION_FAILED", "Shared tick normalizer failed.", "error", ERROR_SCOPE_NORMALIZATION, True),
+    RuntimeErrorInfo("INSUFFICIENT_WARMUP", "Not enough candles to compute strategy safely.", "warning", ERROR_SCOPE_FEATURES, False),
+    RuntimeErrorInfo("FEATURE_ENGINE_FAILED", "Shared tick-to-features engine or strategy compute failed.", "error", ERROR_SCOPE_FEATURES, True),
+    RuntimeErrorInfo("OUTPUT_SCHEMA_FAILED", "Response did not satisfy the shared contract.", "error", ERROR_SCOPE_OUTPUT, False),
+    RuntimeErrorInfo("TRANSPORT_FAILED", "Transport layer failed to deliver the response.", "error", ERROR_SCOPE_TRANSPORT, True),
+)
+
+SHARED_FAILURE_LOOKUP: Mapping[str, RuntimeErrorInfo] = {error.code: error for error in SANCTIONED_FAILURE_TEMPLATES}
+
 FAILURE_MODE_MATRIX: Mapping[str, tuple[RuntimeErrorInfo, ...]] = {
-    machine_id: (
-        RuntimeErrorInfo("REQUEST_VALIDATION_FAILED", "Request schema validation failed.", "error", ERROR_SCOPE_INPUT, False),
-        RuntimeErrorInfo("RETENTION_WINDOW_TOO_SHALLOW", "Requested window exceeds retained history.", "warning", ERROR_SCOPE_READ, False),
-        RuntimeErrorInfo("PAGINATION_DRIFT", "Tick pagination did not produce a complete read.", "warning", ERROR_SCOPE_READ, True),
-        RuntimeErrorInfo("NORMALIZATION_FAILED", "Shared tick normalizer failed.", "error", ERROR_SCOPE_NORMALIZATION, True),
-        RuntimeErrorInfo("INSUFFICIENT_WARMUP", "Not enough candles to compute strategy safely.", "warning", ERROR_SCOPE_FEATURES, False),
-        RuntimeErrorInfo("FEATURE_ENGINE_FAILED", "Shared tick-to-features engine or strategy compute failed.", "error", ERROR_SCOPE_FEATURES, True),
-        RuntimeErrorInfo("OUTPUT_SCHEMA_FAILED", "Response did not satisfy the shared contract.", "error", ERROR_SCOPE_OUTPUT, False),
-        RuntimeErrorInfo("TRANSPORT_FAILED", "Transport layer failed to deliver the response.", "error", ERROR_SCOPE_TRANSPORT, True),
-    )
+    machine_id: SANCTIONED_FAILURE_TEMPLATES
     for machine_id in MACHINE_REGISTRY
 }
 
@@ -167,11 +174,16 @@ def load_response_schema() -> dict[str, Any]:
     return json.loads(schema_path.read_text())
 
 
-def build_failure_error(machine_id: str, code: str, *, message: str | None = None) -> RuntimeErrorInfo:
-    template = FAILURE_MODE_LOOKUP[machine_id][code]
+def build_shared_error(code: str, *, message: str | None = None) -> RuntimeErrorInfo:
+    template = SHARED_FAILURE_LOOKUP[code]
     if message is None:
         return template
     return RuntimeErrorInfo(code=template.code, message=message, severity=template.severity, scope=template.scope, retryable=template.retryable)
+
+
+def build_failure_error(machine_id: str, code: str, *, message: str | None = None) -> RuntimeErrorInfo:
+    FAILURE_MODE_LOOKUP[machine_id][code]
+    return build_shared_error(code, message=message)
 
 
 def validate_response_payload(payload: Mapping[str, Any]) -> list[str]:
@@ -196,27 +208,24 @@ def validate_request(request: Mapping[str, Any], machine_spec: MachineSpec) -> l
     for field in REQUEST_REQUIRED_FIELDS:
         if field not in request:
             errors.append(
-                RuntimeErrorInfo(
-                    code="REQUEST_VALIDATION_FAILED",
+                build_shared_error(
+                    "REQUEST_VALIDATION_FAILED",
                     message=f"Missing required field: {field}",
-                    severity="error",
-                    scope=ERROR_SCOPE_INPUT,
-                    retryable=False,
                 )
             )
     if errors:
         return errors
 
     if request["strategy"] != machine_spec.strategy:
-        errors.append(RuntimeErrorInfo("REQUEST_VALIDATION_FAILED", "Request strategy does not match machine strategy.", "error", ERROR_SCOPE_INPUT, False))
+        errors.append(build_shared_error("REQUEST_VALIDATION_FAILED", message="Request strategy does not match machine strategy."))
     if request["timeframe"] != machine_spec.timeframe:
-        errors.append(RuntimeErrorInfo("REQUEST_VALIDATION_FAILED", "Request timeframe does not match machine timeframe.", "error", ERROR_SCOPE_INPUT, False))
+        errors.append(build_shared_error("REQUEST_VALIDATION_FAILED", message="Request timeframe does not match machine timeframe."))
     if request["agent_id"] != machine_spec.agent_id:
-        errors.append(RuntimeErrorInfo("REQUEST_VALIDATION_FAILED", "Request agent_id does not match frozen registry.", "error", ERROR_SCOPE_INPUT, False))
+        errors.append(build_shared_error("REQUEST_VALIDATION_FAILED", message="Request agent_id does not match frozen registry."))
 
     input_window = request.get("input_window", {})
     if not isinstance(input_window, Mapping) or "from" not in input_window or "to" not in input_window:
-        errors.append(RuntimeErrorInfo("REQUEST_VALIDATION_FAILED", "input_window must contain from/to.", "error", ERROR_SCOPE_INPUT, False))
+        errors.append(build_shared_error("REQUEST_VALIDATION_FAILED", message="input_window must contain from/to."))
     return errors
 
 
@@ -227,13 +236,13 @@ def assess_partial_window(normalization: NormalizationResult, *, strict_mode: bo
 
     for reason in normalization.partial_reasons:
         if reason == PARTIAL_REASON_RETENTION:
-            errors.append(RuntimeErrorInfo("RETENTION_WINDOW_TOO_SHALLOW", "Requested window was truncated by retention.", "warning", ERROR_SCOPE_READ, False))
+            errors.append(build_shared_error("RETENTION_WINDOW_TOO_SHALLOW", message="Requested window was truncated by retention."))
         elif reason == PARTIAL_REASON_PAGINATION:
-            errors.append(RuntimeErrorInfo("PAGINATION_DRIFT", "Pagination did not complete for the requested window.", "warning", ERROR_SCOPE_READ, True))
+            errors.append(build_shared_error("PAGINATION_DRIFT", message="Pagination did not complete for the requested window."))
         elif reason == PARTIAL_REASON_GAP_HEAVY:
-            errors.append(RuntimeErrorInfo("INPUT_GAP_DETECTED", "Gap-heavy input window detected.", "warning", ERROR_SCOPE_READ, True))
+            errors.append(build_shared_error("INPUT_GAP_DETECTED", message="Gap-heavy input window detected."))
         elif reason == PARTIAL_REASON_EMPTY_WINDOW:
-            errors.append(RuntimeErrorInfo("EMPTY_WINDOW", "No ticks were available inside the requested window.", "warning", ERROR_SCOPE_READ, False))
+            errors.append(build_shared_error("EMPTY_WINDOW", message="No ticks were available inside the requested window."))
 
     if strict_mode or any(reason in PARTIAL_TO_ERROR_REASONS for reason in normalization.partial_reasons):
         return STATUS_ERROR, errors
