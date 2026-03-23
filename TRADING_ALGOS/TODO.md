@@ -6,31 +6,21 @@
 Зафиксировать один реальный контракт чтения и один общий preprocessing-слой, чтобы все 12 машин считали разные стратегии, но на одной и той же базе тиков без расхождения по входу.
 
 ## Step 1. Freeze source-of-truth contract
-Жёстко зафиксировать, что все субагенты берут тики из центральной БД `new_collector`, таблица:
+Source-of-truth для входных тиков зафиксировать отдельным документом `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`. Именно этот документ должен быть единственной точкой правды для всех 12 машин и связанных документов.
 
-- `collector_v2.tick_trade`
-
-Обязательные поля, которые уже гарантированы схемой:
-- `source`
-- `symbol`
-- `trade_id`
-- `event_time_utc`
-- `price`
-- `quantity`
-- `side`
-- `ingested_at_utc`
-
-Что нужно зафиксировать сразу:
-- `side` доступен напрямую, proxy-логика не нужна;
-- все timestamps трактуются только в UTC;
-- BTC depth нельзя предполагать — её надо проверять отдельно через `MIN(event_time_utc)`, `MAX(event_time_utc)`, `COUNT(*)`;
-- retention зависит от настройки `RETENTION_DAYS`, значит допустимая глубина окна должна считаться как operational constraint, а не как допущение.
+Что обязан фиксировать контракт:
+- таблицу `collector_v2.tick_trade`;
+- обязательные поля `source`, `symbol`, `trade_id`, `event_time_utc`, `price`, `quantity`, `side`, `ingested_at_utc`;
+- правило, что `side` берётся напрямую, без proxy-логики;
+- правило, что все timestamps трактуются только как UTC;
+- operational constraint по retention через `RETENTION_DAYS`;
+- отдельную процедуру проверки доступной глубины через `MIN(event_time_utc)`, `MAX(event_time_utc)`, `COUNT(*)`.
 
 Артефакт шага:
 - один документ `Tick Source Contract`, на который будут ссылаться все 12 машин.
 
 ## Step 2. Define one canonical read spec for all subagents
-Сделать один общий контракт чтения тиков для всех будущих машин.
+Сделать один общий контракт чтения тиков для всех будущих машин. Этот read spec должен ссылаться на `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md` как на базовый входной контракт и не дублировать его своими словами.
 
 Общий input contract:
 - `symbol`
@@ -135,7 +125,7 @@
 # RESULT OF OPTIMIZED PHASE 1
 
 После завершения этой фазы должно быть:
-- один зафиксированный источник тиков;
+- один зафиксированный источник тиков через `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`;
 - один общий SQL/read contract;
 - один normalization layer;
 - один shared candle+microstructure engine;
@@ -156,6 +146,7 @@
 - RSI_MACD_60M
 
 Каждая машина должна:
+- ссылаться на `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md` как на source-of-truth входа;
 - читать тики через общий слой;
 - строить свой ТФ;
 - считать RSI(14), MACD(12,26,9);
@@ -168,6 +159,7 @@
 - LEVELS_FIBO_HV_60M
 
 Каждая машина должна:
+- ссылаться на `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md` как на source-of-truth входа;
 - строить swings;
 - строить support/resistance;
 - считать Fibonacci;
@@ -181,6 +173,7 @@
 - VOLUME_60M
 
 Каждая машина должна:
+- ссылаться на `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md` как на source-of-truth входа;
 - считать vertical volume;
 - buy/sell split;
 - delta;
@@ -195,6 +188,7 @@
 - ELLIOTT_60M
 
 Каждая машина должна:
+- ссылаться на `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md` как на source-of-truth входа;
 - строить swings;
 - trend structure;
 - pattern candidates;
