@@ -152,6 +152,11 @@ class MainWindow(QMainWindow):
         self.info_box.setReadOnly(True)
         self.info_box.setPlaceholderText("Helper log / operator notes...")
 
+        self.history_box = QTextEdit()
+        self.history_box.setReadOnly(True)
+        self.history_box.setPlaceholderText("Recent command activity for selected session...")
+        self.history_box.setFixedHeight(140)
+
         self.runtime = SessionRuntimeManager(LOG_DIR, self.append_log)
 
         left = QVBoxLayout()
@@ -185,6 +190,9 @@ class MainWindow(QMainWindow):
         cmd_row.addWidget(self.clear_log_btn)
         right.addLayout(cmd_row)
         right.addSpacing(16)
+        right.addWidget(QLabel("Recent command activity"))
+        right.addWidget(self.history_box)
+        right.addSpacing(12)
         right.addWidget(QLabel("Operator log"))
         right.addWidget(self.info_box)
 
@@ -228,25 +236,37 @@ class MainWindow(QMainWindow):
             item.setBackground(self.get_status_color(session))
             self.list_widget.addItem(item)
 
-    def on_select(self, index: int) -> None:
-        if index < 0 or index >= len(self.sessions):
-            return
-        self.selected_index = index
-        s = self.sessions[index]
+    def render_session_details(self, s: SessionProfile) -> None:
         self.selected_label.setText(f"Selected target: {s.name}")
         self.status_label.setText(f"Status: {s.status}")
         self.dashboard_label.setText(f"Dashboard: {s.name} | state={s.state_hint} | launches={s.launch_count}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
-        recent_events = self.runtime.get_recent_command_events(s.name, limit=3)
+        recent_events = self.runtime.get_recent_command_events(s.name, limit=6)
         recent_summary = " ; ".join(
-            f"{item.get('stage')}:{item.get('command_id', '')[:8]}" for item in recent_events
+            f"{item.get('stage')}:{item.get('command_id', '')[:8]}" for item in recent_events[:3]
         ) or "—"
         self.meta_label.setText(
             f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | "
             f"pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | "
             f"last_ok={s.last_launch_ok} | last_error={s.last_error or '—'} | recent_cmds={recent_summary}"
         )
+        if recent_events:
+            lines = []
+            for item in recent_events:
+                lines.append(
+                    f"{item.get('ts', '')} | {item.get('stage', '')} | {item.get('command_id', '')[:8]} | {item.get('command', '')}"
+                )
+            self.history_box.setPlainText("\n".join(lines))
+        else:
+            self.history_box.setPlainText("No command activity yet.")
+
+    def on_select(self, index: int) -> None:
+        if index < 0 or index >= len(self.sessions):
+            return
+        self.selected_index = index
+        s = self.sessions[index]
+        self.render_session_details(s)
 
     def run_auto_start_sessions(self) -> None:
         for s in self.sessions:
@@ -364,6 +384,7 @@ class MainWindow(QMainWindow):
         self.refresh_list()
         if current >= 0:
             self.list_widget.setCurrentRow(current)
+            self.render_session_details(self.sessions[current])
 
     def stop_selected(self) -> None:
         if not self.sessions:
