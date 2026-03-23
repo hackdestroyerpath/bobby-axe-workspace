@@ -52,4 +52,4 @@
 - сильный вывод по 1m делать нельзя без подтверждения старших ТФ
 
 ## Формат ответа
-Короткий JSON / API packet.
+См. единый request schema `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.json` и единый response schema `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.json`. Человекочитаемые пояснения: `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.md` и `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.md`.
