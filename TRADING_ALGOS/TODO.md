@@ -1,24 +1,11 @@
 # TODO
 
-## Current status
-- `PHASE 1` закрыта и подтверждена в `TRADING_ALGOS/PHASE_1_REPORT.md`.
-- Канонические артефакты общей базы уже существуют:
-  - `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`
-  - `TRADING_ALGOS/COMMON_TICK_READ_SPEC.md`
-  - `TRADING_ALGOS/common/tick_normalizer.py`
-  - `TRADING_ALGOS/common/tick_to_features_engine.py`
-  - `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.*`
-  - `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.*`
-- В `TODO.md` больше не держим план по уже выполненной `PHASE 1`, чтобы не смешивать закрытый фундамент и актуальные следующие шаги.
-
----
-
 # PHASE 2 — PREPARE AND BUILD 12 STRATEGY MACHINES ON TOP OF PHASE 1
 
 ## Goal
-Перевести `PHASE 1` из уровня «контракты и общая база готовы» в уровень «12 машин можно поднимать без расхождения по runtime, входу, качеству и интерпретации».
+Перевести Phase 1 из уровня "контракты и общая база готовы" в уровень "12 машин можно поднимать без расхождения по runtime, входу, качеству и интерпретации".
 
-`PHASE 2` теперь не про придумать стратегии заново, а про аккуратное доведение до рабочего контура уже зафиксированной архитектуры:
+Фаза 2 теперь не про придумать стратегии заново, а про аккуратное доведение до рабочего контура уже зафиксированной архитектуры:
 - `TICK_SOURCE_CONTRACT.md` остаётся единственным source-of-truth по входу;
 - `COMMON_TICK_READ_SPEC.md` остаётся единственным read-contract;
 - `common/tick_normalizer.py` обязателен для всех машин;
@@ -26,25 +13,25 @@
 - `SUBAGENT_REQUEST_FORMAT.*` и `SUBAGENT_RESPONSE_FORMAT.*` остаются общим transport contract.
 
 ## Что изменилось после сильной Phase 1
-`PHASE 1` закрыта и удалена из operational backlog.
+Фаза 1 закрыта и из этого плана удалена.
 Теперь главная задача — не пересобирать базу, а не испортить её при реализации машин.
 
 ### Главный принцип Phase 2
-Каждая машина должна добавлять только `strategy-specific compute layer`.
+Каждая машина должна добавлять только strategy-specific compute layer.
 Она не должна:
 - придумывать свой способ читать тики;
 - локально переагрегировать вход в обход shared engine;
-- по-своему трактовать `partial/gaps/pagination`;
+- по-своему трактовать partial/gaps/pagination;
 - возвращать свой transport format;
 - скрывать ограничения данных или симулировать уверенность там, где её нет.
 
 ### Ключевые риски, которые надо закрыть в этой фазе
-На основе `PHASE_1_REPORT.md` в реализацию `PHASE 2` обязательно заложить:
+На основе `PHASE_1_REPORT.md` в реализацию Phase 2 обязательно заложить:
 - контроль retention как operational constraint, а не как предположение;
 - контроль pagination/runtime drift при чтении `/ticks`;
 - одинаковую реакцию всех стратегий на `partial` окна;
 - явное разделение между shared features и strategy-specific features;
-- machine-level runtime discipline: одна машина = один `machine_id` = один runtime contract = один набор failure modes.
+- machine-level runtime discipline: одна машина = один machine_id = один runtime contract = один набор failure modes.
 
 ---
 
@@ -109,7 +96,7 @@
 - strategy code не должен переписывать `status` без связи с `meta.is_partial` и `errors`.
 
 ### Комментарий
-Если это не зафиксировать до реализации, `PHASE 1` формально останется, но фактически каждая машина снова станет отдельным мини-проектом.
+Если это не зафиксировать до реализации, Phase 1 формально останется, но фактически каждая машина снова станет отдельным мини-проектом.
 
 ### Результат шага
 - один runtime execution contract для всех 12 машин.
@@ -151,7 +138,7 @@ Shared engine уже даёт базовые candles/features, но страте
 - является ли выход `partial` или `error`, если warmup не добран.
 
 ### Обязательные комментарии по стратегиям
-- `RSI_MACD`: warmup нужен не только для `RSI(14)`, но и для устойчивого `MACD/EMA`-состояния;
+- `RSI_MACD`: warmup нужен не только для RSI(14), но и для устойчивого MACD/EMA-состояния;
 - `LEVELS_FIBO_HV`: нужен диапазон, достаточный для swing detection и volume profile, иначе уровни будут случайными;
 - `VOLUME`: relative volume без baseline-window бессмысленен;
 - `ELLIOTT`: самый требовательный к структуре и самый опасный с точки зрения ложной уверенности.
@@ -204,7 +191,7 @@ Shared engine уже даёт базовые candles/features, но страте
 - incomplete last candle не должен бездумно искажать momentum-вывод.
 
 ### Комментарий
-Сначала один reusable family-core, потом уже 3 runtime-машины.
+Правка относительно старого плана: сначала не "поднять 3 машины", а сделать один reusable family-core и потом уже обернуть его в 3 runtime-машины.
 
 ### Результат шага
 - один reusable `RSI_MACD` strategy-core.
@@ -236,6 +223,9 @@ Shared engine уже даёт базовые candles/features, но страте
 - `momentum_state`
 - `momentum_strength`
 
+### Комментарий
+1m/5m/60m должны быть разными машинами operationally, но не разными реализациями формул.
+
 ### Результат шага
 - 3 отдельные runtime-машины семейства `RSI_MACD`.
 
@@ -260,11 +250,14 @@ Shared engine уже даёт базовые candles/features, но страте
 ### Обязательные design-решения
 Надо заранее зафиксировать:
 - как считается swing high / swing low;
-- что считать «рабочим» swing range;
+- что считать "рабочим" swing range;
 - как выбирать levels при конфликте нескольких swing-структур;
 - как строить volume profile по окну;
-- как определять `near` для `fib/POC/levels`;
+- как определять `near` для fib/POC/levels;
 - что делать, если структуры недостаточно.
+
+### Комментарий
+Это семейство наиболее чувствительно к расплывчатым определениям. Если не зафиксировать правила заранее, output будет выглядеть убедительно, но окажется недетерминированным.
 
 ### Результат шага
 - один reusable `LEVELS_FIBO_HV` strategy-core.
@@ -325,6 +318,9 @@ Shared engine уже даёт базовые candles/features, но страте
 - как интерпретировать высокий объём против движения цены;
 - как incomplete last candle влияет на текущий volume reading.
 
+### Комментарий
+Формально это самая "простая" семья, но operationally она легко врёт, если volume baseline определён нестрого.
+
 ### Результат шага
 - один reusable `VOLUME` strategy-core.
 
@@ -384,6 +380,9 @@ Shared engine уже даёт базовые candles/features, но страте
 - default confidence — low, пока нет сильного подтверждения;
 - при data gaps или partial input confidence нельзя повышать;
 - нельзя возвращать псевдо-точные Elliott labels при слабой структуре.
+
+### Комментарий
+Правка к старому плану: Elliott нельзя реализовывать как "ещё одну обычную стратегию". Это должен быть кандидатный, максимально консервативный слой поверх уже проверенной базы.
 
 ### Результат шага
 - один reusable `ELLIOTT` strategy-core.
@@ -456,6 +455,9 @@ Shared engine уже даёт базовые candles/features, но страте
 - `is_partial`
 - `partial_reason`
 
+### Комментарий
+Без этого потом невозможно будет отличить problem in strategy logic от problem in runtime/build/input quality.
+
 ### Результат шага
 - traceable meta contract для всех 12 машин.
 
@@ -463,14 +465,17 @@ Shared engine уже даёт базовые candles/features, но страте
 Подготовка к следующей фазе должна начаться уже здесь.
 
 ### Что нужно определить заранее
-Для `Ben_Kim` на уровне контракта описать:
+Для Ben_Kim на уровне контракта описать:
 - как он адресует конкретную машину;
 - как он различает `ready / partial / error`;
 - какие ошибки он может ретраить;
 - какие ответы можно агрегировать;
 - какие ответы надо отбрасывать или помечать как degraded;
 - как он должен относиться к low-confidence Elliott output;
-- как он должен сопоставлять `1m / 5m / 60m` по одной стратегии.
+- как он должен сопоставлять 1m / 5m / 60m по одной стратегии.
+
+### Комментарий
+Если этого не сделать в конце Phase 2, то в Phase 3/4 начнётся обратная подгонка машин под оркестратора.
 
 ### Результат шага
 - machine-to-orchestrator readiness contract.
@@ -479,8 +484,8 @@ Shared engine уже даёт базовые candles/features, но страте
 
 # DEFINITION OF DONE FOR PHASE 2
 
-`PHASE 2` считается подготовленной и завершённой только если одновременно выполнено всё ниже:
-- `PHASE 1` не переписан и не обойдён, а реально использован как обязательная база;
+Phase 2 считается подготовленной и завершённой только если одновременно выполнено всё ниже:
+- Phase 1 не переписан и не обойдён, а реально использован как обязательная база;
 - существует единый machine registry на все 12 машин;
 - существует один runtime pipeline, обязательный для всех машин;
 - существуют family-core реализации для `RSI_MACD`, `LEVELS_FIBO_HV`, `VOLUME`, `ELLIOTT`;
@@ -493,144 +498,13 @@ Shared engine уже даёт базовые candles/features, но страте
 
 ---
 
-# PHASE 3 — VALIDATION OF EACH MACHINE
+# FINAL COMMENT ON PHASE 2
 
-## Goal
-Проверить, что каждая из 12 машин реально считает то, что должна.
+Старая формулировка "просто поднять 12 машин" слишком грубая.
+После сильной Phase 1 Phase 2 должна быть не списком 12 параллельных поделок, а управляемой сборкой:
+- сначала общий runtime discipline;
+- потом 4 reusable strategy families;
+- потом 12 operational wrappers;
+- потом hardening под validation и orchestration.
 
-## Step 1. Test each machine on BTC sample windows
-Для каждой машины отдельно прогнать тесты на BTC за выбранные окна.
-
-Нужно проверить:
-- что машина стартует;
-- что читает тики;
-- что строит свой ТФ;
-- что отдаёт ответ без падения.
-
-## Step 2. Validate output fields
-Убедиться, что каждая машина реально возвращает все обязательные поля из своего ТЗ.
-
-Нельзя допускать частичную реализацию без явной маркировки.
-
-## Step 3. Validate semantic correctness
-Проверить не только наличие полей, но и смысл:
-- RSI должен быть осмысленным;
-- MACD не должен быть пустым;
-- levels должны строиться из реальных swings;
-- volume fields должны соответствовать тиковой реальности;
-- Elliott не должен выдавать fake certainty.
-
-## Step 4. Validate consistency across repeated calls
-Прогнать повторные запросы по одному и тому же окну.
-
-Проверить:
-- детерминированность;
-- повторяемость;
-- отсутствие хаотического дрейфа.
-
-## Step 5. Mark machine states
-Для каждой машины после проверки выставить статус:
-- `ready`
-- `partial`
-- `blocked`
-
-И отдельно фиксировать причину, если машина ещё не `ready`.
-
----
-
-# PHASE 4 — ORCHESTRATION LAYER FOR BEN_KIM
-
-## Goal
-Сделать так, чтобы `Ben_Kim` больше не считал ничего сам, а только оркестрировал 12 машин и собирал ответ.
-
-## Step 1. Define orchestration request plan
-Для каждого `symbol` `Ben_Kim` должен уметь запускать 12 запросов:
-- 4 стратегии × 3 ТФ
-
-Нужно определить:
-- порядок вызова;
-- `parallel/serial` режим;
-- `timeout policy`;
-- `retry policy`.
-
-## Step 2. Define collection layer
-`Ben_Kim` должен уметь собирать 12 ответов в один внутренний пакет.
-
-Нужно определить:
-- как считать missing response;
-- как считать partial response;
-- как считать failed response.
-
-## Step 3. Define summarization rules
-`Ben_Kim` должен суммаризировать:
-- не сырые тики,
-- а ответы 12 машин.
-
-Нужно жёстко зафиксировать, что итоговый текст строится на основании:
-- strategy outputs
-- timeframe outputs
-- confidence/strength/status из subagent responses
-
-## Step 4. Define fallback rules
-Если часть машин не ответила:
-- что считается partial analysis;
-- когда можно писать summary;
-- когда нельзя делать сильный вывод.
-
-## Step 5. Define operator visibility
-Нужно сделать операторский обзор:
-- какие из 12 машин ответили;
-- какие partial;
-- какие failed;
-- какой итоговый статус по symbol.
-
----
-
-# PHASE 5 — DEPLOYMENT AND OPERATION
-
-## Goal
-Довести систему до рабочего режима, в котором все 12 машин можно реально поднимать и использовать.
-
-## Step 1. Deploy machines
-Поднять все 12 машин по отдельности:
-- с их ключами;
-- с их runtime;
-- с их конфигами.
-
-## Step 2. Register API access
-Для каждой машины зафиксировать:
-- endpoint;
-- api key;
-- auth rule;
-- allowable request params.
-
-## Step 3. Run first full 12-request cycle
-На одном символе выполнить полный цикл:
-- 12 запросов
-- 12 ответов
-- 1 финальный summary от `Ben_Kim`
-
-## Step 4. Observe failure modes
-Сразу после первого цикла зафиксировать:
-- что падает;
-- что медленно;
-- что partial;
-- где inconsistent output.
-
-## Step 5. Stabilize operational runbook
-После первых живых прогонов собрать рабочий runbook:
-- как запускать;
-- как проверять;
-- как чинить;
-- как понимать, что всё healthy.
-
----
-
-# FINAL RESULT
-
-После прохождения всех фаз должно быть:
-- 12 отдельных машин;
-- единый вход по тикам;
-- единый формат ответа;
-- `Ben_Kim` как оркестратор, а не счётная машина;
-- один сводный текстовый вывод из 12 `strategy/timeframe`-ответов.
+Именно так Phase 2 не разрушит фундамент, который уже качественно собран в Phase 1.
