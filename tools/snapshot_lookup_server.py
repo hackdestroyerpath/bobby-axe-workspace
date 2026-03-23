@@ -34,7 +34,7 @@ HTML_PAGE = """<!doctype html>
     .card { background:#121933; border:1px solid #27315f; border-radius:12px; padding:16px; margin-bottom:16px; }
     .row { display:flex; gap:16px; flex-wrap:wrap; }
     .col { flex:1; min-width:280px; }
-    input[type=text] { width:100%; padding:12px; border-radius:8px; border:1px solid #3a4a8a; background:#0f1530; color:#fff; }
+    input[type=text], input[type=password], select { width:100%; padding:12px; border-radius:8px; border:1px solid #3a4a8a; background:#0f1530; color:#fff; }
     button { padding:12px 18px; border:none; border-radius:8px; background:#4f7cff; color:#fff; cursor:pointer; }
     button:hover { background:#658cff; }
     .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
@@ -53,7 +53,7 @@ HTML_PAGE = """<!doctype html>
   <div class="wrap">
     <div class="card">
       <h1>Snapshot Lookup</h1>
-      <p>Enter a <code>snapshot_id</code>. All dependent fields are resolved automatically.</p>
+      <p>Enter a <code>snapshot_id</code>. Press <b>Refresh</b> to validate API key / snapshot id and load data.</p>
       <div class="row">
         <div class="col" style="flex:2; min-width:320px;">
           <input id="snapshotId" type="text" placeholder="snapshot_id / bundle_id / correlation_id" />
@@ -62,7 +62,7 @@ HTML_PAGE = """<!doctype html>
           <input id="apiKey" type="password" placeholder="API Key" />
         </div>
         <div class="col" style="flex:1; min-width:220px;">
-          <select id="selectedSymbol" style="width:100%; padding:12px; border-radius:8px; border:1px solid #3a4a8a; background:#0f1530; color:#fff;">
+          <select id="selectedSymbol">
             <option value="">optional symbol (choose from snapshot)</option>
           </select>
         </div>
@@ -71,10 +71,7 @@ HTML_PAGE = """<!doctype html>
         </div>
       </div>
       <div class="row" style="margin-top:12px; align-items:center;">
-        <label><input id="autoRefresh" type="checkbox" /> Auto-refresh every 7s</label>
-        <span id="refreshState" style="color:#92a0c6; margin-left:12px;">Idle</span>
-        <button id="downloadJsonBtn" style="margin-left:12px;">Download JSON</button>
-        <button id="saveJsonBtn" style="margin-left:12px;">Save to Project</button>
+        <span id="refreshState" style="color:#92a0c6;">Idle</span>
       </div>
     </div>
 
@@ -141,7 +138,6 @@ function statusClass(v) {
   if (!v) return '';
   return 'status-' + String(v).replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
 }
-let autoTimer = null;
 
 function authHeaders() {
   const key = document.getElementById('apiKey').value.trim();
@@ -161,14 +157,51 @@ function loadApiKey() {
   } catch {}
 }
 
+function popupStatus(message) {
+  window.alert(message);
+}
+
+function classifyLookupError(resStatus, data) {
+  if (resStatus === 401) return 'Invalid API key or access denied';
+  if (resStatus === 400) return data && data.error ? `Bad request: ${data.error}` : 'Bad request';
+  const lookupStatus = (data && data.lookup && data.lookup.status) ? String(data.lookup.status) : '';
+  const resultCode = data && data.result_code ? String(data.result_code) : '';
+  const errors = data && data.errors ? JSON.stringify(data.errors) : '';
+  if (lookupStatus === 'not_found' || resultCode === 'not_found') return 'Invalid snapshot_id: snapshot not found';
+  if (errors && errors !== '[]') return `Lookup failed: ${errors}`;
+  if (resStatus >= 400) return `Request failed with status ${resStatus}`;
+  return null;
+}
+
 async function lookup() {
   const id = document.getElementById('snapshotId').value.trim();
   const symbol = document.getElementById('selectedSymbol').value.trim();
-  if (!id) return;
+  if (!id) {
+    popupStatus('Snapshot ID is required');
+    document.getElementById('refreshState').textContent = 'Snapshot ID is required';
+    return;
+  }
   document.getElementById('refreshState').textContent = 'Loading...';
   persistApiKey();
-  const res = await fetch(`/lookup?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`, { headers: authHeaders() });
-  const data = await res.json();
+  let res, data;
+  try {
+    res = await fetch(`/lookup?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`, { headers: authHeaders() });
+    data = await res.json();
+  } catch (err) {
+    popupStatus(`Network/server error: ${err}`);
+    document.getElementById('refreshState').textContent = 'Network/server error';
+    return;
+  }
+
+  const errMsg = classifyLookupError(res.status, data);
+  if (errMsg) {
+    popupStatus(errMsg);
+    document.getElementById('refreshState').textContent = errMsg;
+    document.getElementById('result').classList.add('hidden');
+    return;
+  }
+
+  popupStatus('Lookup success');
   document.getElementById('result').classList.remove('hidden');
 
   const meta = data.snapshot || {};
@@ -268,38 +301,7 @@ async function lookup() {
   document.getElementById('refreshState').textContent = 'Updated: ' + new Date().toLocaleTimeString();
 }
 
-function setAutoRefresh(enabled) {
-  if (autoTimer) {
-    clearInterval(autoTimer);
-    autoTimer = null;
-  }
-  if (enabled) {
-    autoTimer = setInterval(() => {
-      const id = document.getElementById('snapshotId').value.trim();
-      if (id) lookup();
-    }, 7000);
-    document.getElementById('refreshState').textContent = 'Auto-refresh enabled';
-  }
-}
-
 document.getElementById('refreshBtn').addEventListener('click', lookup);
-document.getElementById('downloadJsonBtn').addEventListener('click', () => {
-  const id = document.getElementById('snapshotId').value.trim();
-  const symbol = document.getElementById('selectedSymbol').value.trim();
-  if (!id) return;
-  document.getElementById('refreshState').textContent = 'Download endpoint requires API key via direct request; use Refresh/Save inside UI.';
-});
-document.getElementById('saveJsonBtn').addEventListener('click', async () => {
-  const id = document.getElementById('snapshotId').value.trim();
-  const symbol = document.getElementById('selectedSymbol').value.trim();
-  if (!id) return;
-  document.getElementById('refreshState').textContent = 'Saving...';
-  persistApiKey();
-  const res = await fetch(`/lookup/save?snapshot_id=${encodeURIComponent(id)}&symbol=${encodeURIComponent(symbol)}`, { headers: authHeaders() });
-  const data = await res.json();
-  document.getElementById('refreshState').textContent = data.saved_to ? `Saved: ${data.saved_to}` : 'Save failed';
-});
-document.getElementById('autoRefresh').addEventListener('change', (e) => setAutoRefresh(e.target.checked));
 document.getElementById('apiKey').addEventListener('change', persistApiKey);
 loadApiKey();
 document.getElementById('snapshotId').addEventListener('keydown', (e) => {
@@ -518,23 +520,20 @@ class SnapshotLookupHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-    def log_message(self, format: str, *args) -> None:
-        return
-
-    def _send_json(self, payload, status: HTTPStatus = HTTPStatus.OK, extra_headers: dict | None = None) -> None:
+    def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK, extra_headers: dict | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False, indent=2).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
         if extra_headers:
-            for k, v in extra_headers.items():
-                self.send_header(k, v)
+            for key, value in extra_headers.items():
+                self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_html(self, html_content: str, status: HTTPStatus = HTTPStatus.OK) -> None:
-        body = html_content.encode('utf-8')
-        self.send_response(status)
+    def _send_html(self, page: str) -> None:
+        body = page.encode('utf-8')
+        self.send_response(HTTPStatus.OK)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
@@ -548,7 +547,7 @@ def main() -> None:
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), SnapshotLookupHandler)
-    print(json.dumps({'host': args.host, 'port': args.port}, ensure_ascii=False))
+    print(f'snapshot lookup server listening on http://{args.host}:{args.port}')
     try:
         server.serve_forever()
     except KeyboardInterrupt:
