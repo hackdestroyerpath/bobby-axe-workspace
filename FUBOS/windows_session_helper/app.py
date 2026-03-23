@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from models import (
     STATE_AUTO_START_FAILED,
+    STATE_ACCEPTED,
     STATE_AUTO_STARTED,
     STATE_DEAD,
     STATE_FRESH,
@@ -411,18 +412,18 @@ class MainWindow(QMainWindow):
         if not command:
             QMessageBox.information(self, "No command", "Type a command first.")
             return
-        ok, error = self.runtime.send_command(s, command)
+        ok, error, command_id = self.runtime.send_command(s, command)
         self.persist()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
         if ok:
-            self.append_log(f"[ok] sent to '{s.name}': {command}")
+            self.append_log(f"[ok] sent to '{s.name}': {command} | command_id={command_id}")
             self.command_input.clear()
         else:
             if error == "session not managed":
-                self.append_log(f"[warn] session '{s.name}' is not managed yet; press Connect / Reconnect in helper first, then send command.")
+                self.append_log(f"[warn] session '{s.name}' is not managed yet; press Connect / Reconnect in helper first, then send command. | command_id={command_id}")
             else:
-                self.append_log(f"[err] failed send to '{s.name}': {error}")
+                self.append_log(f"[err] failed send to '{s.name}': {error} | command_id={command_id}")
 
 
 def main() -> None:

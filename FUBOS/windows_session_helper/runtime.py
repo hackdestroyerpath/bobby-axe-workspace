@@ -6,9 +6,11 @@ import threading
 import time
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 from models import (
     STATE_AUTO_START_FAILED,
+    STATE_ACCEPTED,
     STATE_COMMAND_SENT,
     STATE_DEAD,
     STATE_FRESH,
@@ -27,6 +29,7 @@ class SessionRuntimeManager:
         self.log_dir = log_dir
         self.log_callback = log_callback
         self.action_log_path = log_dir / "actions.jsonl"
+        self.command_log_path = log_dir / "commands.jsonl"
         self.process_handles: dict[str, subprocess.Popen] = {}
         self.dead_logged: set[str] = set()
 
@@ -49,6 +52,19 @@ class SessionRuntimeManager:
         if proc is None:
             return None
         return proc if proc.poll() is None else None
+
+    def record_command_event(self, session: str, command_id: str, command: str, stage: str, error: str = "") -> None:
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "session": session,
+            "command_id": command_id,
+            "command": command,
+            "stage": stage,
+            "error": error,
+        }
+        with self.command_log_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
     def stream_output(self, sessions: list[SessionProfile], session_name: str, stream, stream_name: str) -> None:
         for raw_line in iter(stream.readline, ""):
@@ -138,22 +154,28 @@ class SessionRuntimeManager:
             self.log_callback(f"[err] failed to launch {session.name}: {exc}")
             self.record_action("launch", session=session.name, result="failed", error=str(exc), extra={"source": source})
 
-    def send_command(self, session: SessionProfile, command: str) -> tuple[bool, str | None]:
+    def send_command(self, session: SessionProfile, command: str) -> tuple[bool, str | None, str | None]:
+        command_id = str(uuid4())
+        session.state_hint = STATE_ACCEPTED
+        self.record_command_event(session.name, command_id, command, "accepted")
         proc = self.get_live_process(session)
         if not proc or proc.stdin is None:
             self.record_action("send", session=session.name, result="failed", error="session not managed")
-            return False, "session not managed"
+            self.record_command_event(session.name, command_id, command, "failed", error="session not managed")
+            return False, "session not managed", command_id
         try:
             proc.stdin.write(command + "\n")
             proc.stdin.flush()
             session.last_seen_ts = time.time()
             session.state_hint = STATE_COMMAND_SENT
             session.last_error = ""
-            self.record_action("send", session=session.name, result="ok", extra={"command": command})
-            return True, None
+            self.record_action("send", session=session.name, result="ok", extra={"command": command, "command_id": command_id})
+            self.record_command_event(session.name, command_id, command, "written")
+            return True, None, command_id
         except Exception as exc:
             session.last_error = str(exc)
             session.status = STATUS_FAILED
             session.state_hint = "send_failed"
-            self.record_action("send", session=session.name, result="failed", error=str(exc), extra={"command": command})
-            return False, str(exc)
+            self.record_action("send", session=session.name, result="failed", error=str(exc), extra={"command": command, "command_id": command_id})
+            self.record_command_event(session.name, command_id, command, "failed", error=str(exc))
+            return False, str(exc), command_id

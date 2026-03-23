@@ -10,6 +10,7 @@ Main files:
 - `WINDOWS_SETUP.md`
 - `build_exe.bat`
 - `logs/actions.jsonl` (runtime-generated)
+- `logs/commands.jsonl` (runtime-generated)
 
 ---
 

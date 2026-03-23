@@ -23,6 +23,7 @@ pip install -r requirements.txt
 - process death is detected and reflected in UI state
 - stdout/stderr are captured into the operator log when available
 - structured action log is written to `logs/actions.jsonl`
+- command journal is written to `logs/commands.jsonl`
 
 ## Status model
 
