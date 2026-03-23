@@ -38,6 +38,19 @@ class Phase2RuntimeTests(unittest.TestCase):
         self.assertEqual(response["meta"]["partial_reason"], "pagination_truncation")
         self.assertTrue(any(error["code"] == "PAGINATION_DRIFT" for error in response["errors"]))
 
+    def test_rsi_machine_counts_only_returned_candles_for_warmup_when_incomplete_is_excluded(self) -> None:
+        request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
+        request["input_window"]["to"] = "2026-03-23T09:34:30Z"
+
+        excluded_response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+        self.assertEqual(excluded_response["status"], STATUS_PARTIAL)
+        self.assertTrue(any(error["code"] == "INSUFFICIENT_WARMUP" for error in excluded_response["errors"]))
+
+        request["options"]["include_incomplete_candle"] = True
+        included_response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+        self.assertEqual(included_response["status"], STATUS_READY)
+        self.assertIn("rsi_value", included_response["features"])
+
     def test_machine_returns_error_on_empty_window(self) -> None:
         request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
         response = execute_rsi_macd_machine(request, [], gap_threshold=timedelta(minutes=1))

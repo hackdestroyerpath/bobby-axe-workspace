@@ -48,6 +48,7 @@ class MachineExecutor:
             return self._error_response(request, request_errors)
 
         strict_mode = bool(request.get("options", {}).get("strict_mode", False))
+        include_incomplete_candle = bool(request.get("options", {}).get("include_incomplete_candle", False))
         window_from = _parse_dt(request["input_window"]["from"])
         window_to = _parse_dt(request["input_window"]["to"])
         normalization = normalize_ticks(
@@ -67,9 +68,10 @@ class MachineExecutor:
             window_from=window_from,
             window_to=window_to,
             timeframes=(self.machine_spec.timeframe,),
+            include_incomplete_candle=include_incomplete_candle,
         )
         candles = candle_result.candles_by_timeframe[self.machine_spec.timeframe]
-        warmup = assess_warmup(len([c for c in candles if c.close is not None]), self.machine_spec.warmup, strict_mode=strict_mode)
+        warmup = assess_warmup(_count_usable_candles(candles), self.machine_spec.warmup, strict_mode=strict_mode)
         if not warmup.has_sufficient_warmup:
             runtime_errors = [
                 *runtime_errors,
@@ -189,3 +191,7 @@ def _default_gap_threshold(timeframe: str) -> timedelta:
         "5m": timedelta(minutes=2),
         "60m": timedelta(minutes=20),
     }[timeframe]
+
+
+def _count_usable_candles(candles: Sequence[CandleFeatureRow]) -> int:
+    return sum(1 for candle in candles if candle.close is not None)

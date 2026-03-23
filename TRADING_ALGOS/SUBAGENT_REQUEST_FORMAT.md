@@ -18,7 +18,7 @@
 - `source_contract_version` — какая версия общего тик-контракта использовалась оркестратором.
 
 ## Опциональные поля
-- `options.include_incomplete_candle` — можно ли включать незавершённую последнюю свечу.
+- `options.include_incomplete_candle` — можно ли включать незавершённую последнюю свечу. По умолчанию `false`: если `input_window.to` попадает внутрь bucket, shared candle engine отбрасывает этот последний неполный bucket. Если `true`, последний bucket остаётся в выдаче и помечается как `is_incomplete=true`.
 - `options.strict_mode` — если `true`, машина должна предпочесть `status=error`, а не деградированный partial-ответ, когда критичный вход отсутствует.
 
 ## Минимальный пример
