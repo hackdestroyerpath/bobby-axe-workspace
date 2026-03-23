@@ -132,14 +132,16 @@ class MachineExecutor:
         return build_failure_error(self.machine_spec.machine_id, code, message=message)
 
     def _error_response(self, request: Mapping[str, Any], errors: list[Any]) -> dict[str, Any]:
+        generated_at = now_utc_iso()
         response = {
+            "request_id": self._safe_request_string(request, "request_id", f"invalid-request-{self.machine_spec.machine_id}"),
             "agent_id": request.get("agent_id", self.machine_spec.agent_id),
             "strategy": request.get("strategy", self.machine_spec.strategy),
             "timeframe": request.get("timeframe", self.machine_spec.timeframe),
             "symbol": request.get("symbol", "UNKNOWN"),
             "source": request.get("source", "UNKNOWN"),
             "requested_at": request.get("requested_at", now_utc_iso()),
-            "as_of": now_utc_iso(),
+            "generated_at": generated_at,
             "response_contract_version": request.get("response_contract_version", "unknown"),
             "status": STATUS_ERROR,
             "input_window": request.get("input_window", {"from": now_utc_iso(), "to": now_utc_iso()}),
@@ -173,12 +175,14 @@ class MachineExecutor:
         normalization: Any | None = None,
         errors: Sequence[Any] = (),
     ) -> dict[str, Any]:
+        generated_at = now_utc_iso()
         response = self._build_response_payload(
             request,
             normalization=normalization,
             features={},
             errors=[*errors, self._build_runtime_error(code, message)],
             status=STATUS_ERROR,
+            generated_at=generated_at,
         )
         return self._validate_or_output_failure(request, response)
 
@@ -190,12 +194,14 @@ class MachineExecutor:
         errors: list[Any],
         status: str,
     ) -> dict[str, Any]:
+        generated_at = now_utc_iso()
         response = self._build_response_payload(
             request,
             normalization=normalization,
             features=features,
             errors=errors,
             status=status,
+            generated_at=generated_at,
         )
         return self._validate_or_output_failure(request, response)
 
@@ -207,6 +213,7 @@ class MachineExecutor:
         features: Mapping[str, Any],
         errors: Sequence[Any],
         status: str,
+        generated_at: str | None = None,
     ) -> dict[str, Any]:
         meta = self._build_meta_payload(request, normalization, status)
         summary = build_summary(
@@ -221,14 +228,16 @@ class MachineExecutor:
                 "confidence": "low",
                 "note": "runtime terminated before usable strategy output",
             }
+        payload_generated_at = generated_at or now_utc_iso()
         return {
+            "request_id": self._safe_request_string(request, "request_id", f"unknown-request-{self.machine_spec.machine_id}"),
             "agent_id": self.machine_spec.agent_id,
             "strategy": self.machine_spec.strategy,
             "timeframe": self.machine_spec.timeframe,
             "symbol": self._safe_request_string(request, "symbol", "UNKNOWN"),
             "source": self._safe_request_string(request, "source", "UNKNOWN"),
             "requested_at": self._safe_request_datetime(request, "requested_at"),
-            "as_of": now_utc_iso(),
+            "generated_at": payload_generated_at,
             "response_contract_version": self._safe_request_string(request, "response_contract_version", "unknown"),
             "status": status,
             "input_window": self._safe_input_window(request),
@@ -280,6 +289,7 @@ class MachineExecutor:
             features={},
             errors=[output_error],
             status=STATUS_ERROR,
+            generated_at=self._safe_response_datetime(response, "generated_at"),
         )
         return fallback
 
@@ -311,6 +321,16 @@ class MachineExecutor:
                     pass
         now = now_utc_iso()
         return {"from": now, "to": now}
+
+    def _safe_response_datetime(self, response: Mapping[str, Any], field: str) -> str:
+        value = response.get(field)
+        if isinstance(value, str) and value:
+            try:
+                _parse_dt(value)
+                return value
+            except ValueError:
+                pass
+        return now_utc_iso()
 
 
 def execute_rsi_macd_machine(request: Mapping[str, Any], ticks: Iterable[Mapping[str, Any] | NormalizedTick], **kwargs: Any) -> dict[str, Any]:

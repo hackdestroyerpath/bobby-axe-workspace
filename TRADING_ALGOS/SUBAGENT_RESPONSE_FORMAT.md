@@ -11,13 +11,14 @@
 - `error` — полезный расчёт не собран; в `errors` должен быть минимум один объект ошибки.
 
 ## Поля верхнего уровня
+- `request_id` — сквозной id request, который делает machine response самодостаточным storage object для downstream packaging.
 - `agent_id` — id конкретного субагента.
 - `strategy` — стратегия.
 - `timeframe` — таймфрейм.
 - `symbol` — инструмент.
 - `source` — источник данных.
 - `requested_at` — когда запросили.
-- `as_of` — на какой момент рассчитан ответ.
+- `generated_at` — канонический timestamp сборки machine response. Для Phase 3 packaging это timestamp самого storage object. Поле `as_of` больше не используется, чтобы не смешивать время сборки packet и рыночный срез.
 - `response_contract_version` — версия общего response contract, по которому собран этот packet.
 - `status` — итоговое состояние ответа: `ready`, `partial`, `error`.
 - `input_window` — диапазон входных данных.
@@ -43,6 +44,13 @@
 - Для partial-ответа `meta.partial_reason` обязателен и не должен быть пустым.
 - `status = ready` => `meta.is_partial = false`, а `meta.partial_reason` должен быть `null` или отсутствовать по внутренней модели генерации.
 - `status = error` => `errors` должен содержать хотя бы одну ошибку.
+
+## Phase 3 packaging boundary
+- Выбран контракт `one machine response = one storage object`.
+- Поэтому machine response сам обязан нести `request_id` и `generated_at`.
+- Downstream packaging не должен реконструировать identity из внешней пары `request + response`; он может полагаться на сам machine response как на полный object для storage/transport.
+- `requested_at` остаётся traceability-временем исходного orchestration request.
+- `generated_at` — единственный канонический timestamp ответа. Если downstream нужен market snapshot time, он должен брать его из `input_window.to` или отдельного будущего поля, но не переиспользовать `generated_at`.
 
 ## Канонический `errors.scope` для всей Phase 2
 Во всей runtime/schema/docs используется единый набор scope:
@@ -93,12 +101,13 @@
 ```json
 {
   "agent_id": "rsi_macd_5m_01",
+  "request_id": "req-2026-03-23T10:15:00Z-rsi5m-01",
   "strategy": "RSI_MACD",
   "timeframe": "5m",
   "symbol": "BTCUSDC",
   "source": "Data_collector",
   "requested_at": "2026-03-23T10:15:00Z",
-  "as_of": "2026-03-23T10:15:02Z",
+  "generated_at": "2026-03-23T10:15:02Z",
   "response_contract_version": "v1",
   "status": "partial",
   "input_window": {

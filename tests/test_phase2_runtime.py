@@ -32,23 +32,31 @@ class Phase2RuntimeTests(unittest.TestCase):
 
     def test_rsi_machine_returns_ready_response_with_features(self) -> None:
         request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
-        response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+        with patch("TRADING_ALGOS.machines.now_utc_iso", return_value="2026-03-23T10:15:02Z"):
+            response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
 
         self.assertEqual(response["status"], STATUS_READY)
+        self.assertEqual(response["request_id"], request["request_id"])
+        self.assertEqual(response["requested_at"], request["requested_at"])
+        self.assertEqual(response["generated_at"], "2026-03-23T10:15:02Z")
         self.assertFalse(response["meta"]["is_partial"])
         self.assertIn("rsi_value", response["features"])
         self.assertIn(response["summary"]["confidence"], {"low", "medium", "high"})
 
     def test_volume_machine_returns_partial_on_pagination_drift(self) -> None:
         request = self._request(strategy="VOLUME", timeframe="1m", agent_id="volume_1m")
-        response = execute_volume_machine(
-            request,
-            self._ticks(25),
-            gap_threshold=timedelta(minutes=1),
-            page_complete=False,
-        )
+        with patch("TRADING_ALGOS.machines.now_utc_iso", return_value="2026-03-23T10:15:03Z"):
+            response = execute_volume_machine(
+                request,
+                self._ticks(25),
+                gap_threshold=timedelta(minutes=1),
+                page_complete=False,
+            )
 
         self.assertEqual(response["status"], STATUS_PARTIAL)
+        self.assertEqual(response["request_id"], request["request_id"])
+        self.assertEqual(response["requested_at"], request["requested_at"])
+        self.assertEqual(response["generated_at"], "2026-03-23T10:15:03Z")
         self.assertTrue(response["meta"]["is_partial"])
         self.assertEqual(response["meta"]["partial_reason"], "pagination_truncation")
         self.assertTrue(any(error["code"] == "PAGINATION_DRIFT" for error in response["errors"]))
@@ -68,9 +76,13 @@ class Phase2RuntimeTests(unittest.TestCase):
 
     def test_machine_returns_error_on_empty_window(self) -> None:
         request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
-        response = execute_rsi_macd_machine(request, [], gap_threshold=timedelta(minutes=1))
+        with patch("TRADING_ALGOS.machines.now_utc_iso", return_value="2026-03-23T10:15:04Z"):
+            response = execute_rsi_macd_machine(request, [], gap_threshold=timedelta(minutes=1))
 
         self.assertEqual(response["status"], STATUS_ERROR)
+        self.assertEqual(response["request_id"], request["request_id"])
+        self.assertEqual(response["requested_at"], request["requested_at"])
+        self.assertEqual(response["generated_at"], "2026-03-23T10:15:04Z")
         self.assertEqual(response["features"], {})
         self.assertTrue(any(error["code"] == "EMPTY_WINDOW" for error in response["errors"]))
 
@@ -128,10 +140,15 @@ class Phase2RuntimeTests(unittest.TestCase):
             "note": "forced invalid summary",
         }
 
-        with patch("TRADING_ALGOS.machines.build_summary", return_value=invalid_summary):
+        with patch("TRADING_ALGOS.machines.build_summary", return_value=invalid_summary), patch(
+            "TRADING_ALGOS.machines.now_utc_iso", return_value="2026-03-23T10:15:05Z"
+        ):
             response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
 
         self.assertEqual(response["status"], STATUS_ERROR)
+        self.assertEqual(response["request_id"], request["request_id"])
+        self.assertEqual(response["requested_at"], request["requested_at"])
+        self.assertEqual(response["generated_at"], "2026-03-23T10:15:05Z")
         self.assertTrue(any(error["code"] == "OUTPUT_SCHEMA_FAILED" for error in response["errors"]))
 
     @staticmethod
