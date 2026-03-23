@@ -13,6 +13,7 @@
     "source",
     "requested_at",
     "as_of",
+    "response_contract_version",
     "status",
     "input_window",
     "features",
@@ -57,6 +58,10 @@
     "as_of": {
       "type": "string",
       "format": "date-time"
+    },
+    "response_contract_version": {
+      "type": "string",
+      "minLength": 1
     },
     "status": {
       "type": "string",

@@ -29,7 +29,7 @@
 - `EMPTY_WINDOW`
 
 ## 4. Aggregation rules
-- Агрегировать ответы только если совпадают `strategy`, `symbol`, `source_contract_version` и `response_contract_version`.
+- Агрегировать ответы только если совпадают `strategy`, `symbol`, верхнеуровневый `response_contract_version` и `meta.source_contract_version`.
 - `partial` packet не превращать в `ready` после агрегации.
 - Если хотя бы один timeframe в family имеет `partial` из-за retention/pagination/gaps, итог family надо маркировать как degraded.
 

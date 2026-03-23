@@ -121,6 +121,7 @@ Runtime wrappers живут в `TRADING_ALGOS/machines.py`.
 Общий failure-mode matrix и traceability rules зафиксированы в `TRADING_ALGOS/runtime_contract.py`.
 
 Каждый ответ стабильно несёт:
+- `response_contract_version`
 - `machine_id`
 - `api_key_id`
 - `build_version`
