@@ -134,6 +134,8 @@ class MainWindow(QMainWindow):
         self.delete_btn.clicked.connect(self.delete_session)
         self.reconnect_btn = QPushButton("Connect / Reconnect")
         self.reconnect_btn.clicked.connect(self.reconnect_selected)
+        self.stop_btn = QPushButton("Stop Session")
+        self.stop_btn.clicked.connect(self.stop_selected)
         self.mark_inactive_btn = QPushButton("Mark Inactive")
         self.mark_inactive_btn.clicked.connect(self.mark_inactive)
         self.edit_btn = QPushButton("Edit Session")
@@ -171,6 +173,7 @@ class MainWindow(QMainWindow):
         row.addWidget(self.duplicate_btn)
         row.addWidget(self.delete_btn)
         row.addWidget(self.reconnect_btn)
+        row.addWidget(self.stop_btn)
         row.addWidget(self.mark_inactive_btn)
         row.addWidget(self.edit_btn)
         right.addLayout(row)
@@ -232,7 +235,7 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(f"{session.name} | {session.status} | {session.state_hint} | launches={session.launch_count}")
             if session.status == 'active':
                 item.setBackground(Qt.darkGreen)
-            elif session.state_hint in ('launch_failed', 'send_failed'):
+            elif session.state_hint in ('launch_failed', 'send_failed', 'dead', 'auto_start_failed'):
                 item.setBackground(Qt.darkRed)
             else:
                 item.setBackground(Qt.darkYellow)
@@ -248,40 +251,85 @@ class MainWindow(QMainWindow):
         self.dashboard_label.setText(f"Dashboard: {s.name} | state={s.state_hint} | launches={s.launch_count}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
-        self.meta_label.setText(f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}")
-
-    def run_auto_start_sessions(self) -> None:
-        for idx, s in enumerate(self.sessions):
-            if s.auto_start:
-                try:
-                    proc = subprocess.Popen(s.command, shell=True, stdin=subprocess.PIPE, text=True)
-                    self.process_handles[s.name] = proc
-                    s.status = 'active'
-                    s.last_error = ''
-                    s.launch_count += 1
-                    s.last_launch_ok = True
-                    s.process_id = getattr(proc, 'pid', None)
-                    s.last_seen_ts = time.time()
-                    s.state_hint = 'auto_started'
-                    self.append_log(f"[ok] auto-started: {s.name} | pid={s.process_id}")
-                except Exception as exc:
-                    s.status = 'inactive'
-                    s.last_error = str(exc)
-                    s.launch_count += 1
-                    s.last_launch_ok = False
-                    s.process_id = None
-                    s.state_hint = 'auto_start_failed'
-                    self.append_log(f"[err] auto-start failed: {s.name}: {exc}")
-        self.save_sessions()
-        self.refresh_list()
+        self.meta_label.setText(
+            f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | "
+            f"pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | "
+            f"last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}"
+        )
 
     def append_log(self, text: str) -> None:
         ts = time.strftime('%H:%M:%S')
-        self.append_log(f"[{ts}] {text}")
+        self.info_box.append(f"[{ts}] {text}")
 
     def clear_log(self) -> None:
         self.info_box.clear()
         self.append_log('log cleared')
+
+    def get_live_process(self, session: SessionProfile) -> subprocess.Popen | None:
+        proc = self.process_handles.get(session.name)
+        if proc is None:
+            return None
+        if proc.poll() is None:
+            return proc
+        return None
+
+    def mark_session_dead(self, session: SessionProfile, return_code: int | None = None) -> None:
+        session.status = 'inactive'
+        session.last_launch_ok = False
+        session.process_id = None
+        session.state_hint = 'dead'
+        if return_code is not None:
+            session.last_error = f'process exited with code {return_code}'
+        self.process_handles.pop(session.name, None)
+
+    def stop_session(self, session: SessionProfile, reason: str = 'stopped by operator') -> None:
+        proc = self.process_handles.get(session.name)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=3)
+        self.process_handles.pop(session.name, None)
+        session.status = 'inactive'
+        session.process_id = None
+        session.state_hint = 'stopped'
+        session.last_error = ''
+        session.last_seen_ts = time.time()
+        self.append_log(f"[ok] stopped: {session.name} ({reason})")
+
+    def launch_session(self, session: SessionProfile, source: str) -> None:
+        live = self.get_live_process(session)
+        if live is not None:
+            self.append_log(f"[info] replacing live process for {session.name} before relaunch")
+            self.stop_session(session, reason='reconnect requested')
+        try:
+            proc = subprocess.Popen(session.command, shell=True, stdin=subprocess.PIPE, text=True)
+            self.process_handles[session.name] = proc
+            session.status = 'active'
+            session.last_error = ''
+            session.launch_count += 1
+            session.last_launch_ok = True
+            session.process_id = getattr(proc, 'pid', None)
+            session.last_seen_ts = time.time()
+            session.state_hint = source
+            self.append_log(f"[ok] launched: {session.name} | pid={session.process_id} | source={source}")
+        except Exception as exc:
+            session.status = 'failed'
+            session.last_error = str(exc)
+            session.launch_count += 1
+            session.last_launch_ok = False
+            session.process_id = None
+            session.state_hint = 'launch_failed' if source != 'auto_started' else 'auto_start_failed'
+            self.append_log(f"[err] failed to launch {session.name}: {exc}")
+
+    def run_auto_start_sessions(self) -> None:
+        for s in self.sessions:
+            if s.auto_start:
+                self.launch_session(s, source='auto_started')
+        self.save_sessions()
+        self.refresh_list()
 
     def export_profiles(self) -> None:
         export_path = APP_DIR / "sessions.export.json"
@@ -357,12 +405,12 @@ class MainWindow(QMainWindow):
     def delete_session(self) -> None:
         if not self.sessions:
             return
-        if not self.sessions:
-            return
         s = self.sessions[self.selected_index]
         if len(self.sessions) == 1:
             QMessageBox.information(self, "Cannot delete", "At least one session profile should remain.")
             return
+        if self.get_live_process(s) is not None:
+            self.stop_session(s, reason='delete requested')
         del self.sessions[self.selected_index]
         self.save_sessions()
         self.refresh_list()
@@ -373,25 +421,7 @@ class MainWindow(QMainWindow):
         if not self.sessions:
             return
         s = self.sessions[self.selected_index]
-        try:
-            proc = subprocess.Popen(s.command, shell=True, stdin=subprocess.PIPE, text=True)
-            self.process_handles[s.name] = proc
-            s.status = "active"
-            s.last_error = ""
-            s.launch_count += 1
-            s.last_launch_ok = True
-            s.process_id = getattr(proc, 'pid', None)
-            s.last_seen_ts = time.time()
-            s.state_hint = 'launched'
-            self.append_log(f"[ok] launched/reconnected: {s.name} | pid={s.process_id}")
-        except Exception as exc:
-            s.status = "inactive"
-            s.last_error = str(exc)
-            s.launch_count += 1
-            s.last_launch_ok = False
-            s.process_id = None
-            s.state_hint = 'launch_failed'
-            self.append_log(f"[err] failed to launch {s.name}: {exc}")
+        self.launch_session(s, source='launched')
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
@@ -399,6 +429,13 @@ class MainWindow(QMainWindow):
     def refresh_state_hints(self) -> None:
         now = time.time()
         for s in self.sessions:
+            proc = self.process_handles.get(s.name)
+            if proc is not None:
+                return_code = proc.poll()
+                if return_code is not None:
+                    self.mark_session_dead(s, return_code=return_code)
+                    self.append_log(f"[warn] process exited: {s.name} | code={return_code}")
+                    continue
             if s.status == 'active' and s.last_seen_ts:
                 age = now - s.last_seen_ts
                 if age < 10:
@@ -415,13 +452,31 @@ class MainWindow(QMainWindow):
         if current >= 0:
             self.list_widget.setCurrentRow(current)
 
+    def stop_selected(self) -> None:
+        if not self.sessions:
+            return
+        s = self.sessions[self.selected_index]
+        if self.get_live_process(s) is None:
+            s.status = 'inactive'
+            s.process_id = None
+            s.state_hint = 'stopped'
+            self.append_log(f"[info] no live process to stop for: {s.name}")
+        else:
+            self.stop_session(s)
+        self.save_sessions()
+        self.refresh_list()
+        self.list_widget.setCurrentRow(self.selected_index)
+
     def mark_inactive(self) -> None:
         if not self.sessions:
             return
         s = self.sessions[self.selected_index]
-        s.status = "inactive"
-        s.process_id = None
-        s.state_hint = 'manually_inactive'
+        if self.get_live_process(s) is not None:
+            self.stop_session(s, reason='marked inactive')
+        else:
+            s.status = 'inactive'
+            s.process_id = None
+            s.state_hint = 'manually_inactive'
         self.save_sessions()
         self.refresh_list()
         self.list_widget.setCurrentRow(self.selected_index)
@@ -446,7 +501,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No command", "Type a command first.")
             return
 
-        proc = self.process_handles.get(s.name)
+        proc = self.get_live_process(s)
         if not proc or proc.stdin is None:
             self.append_log(f"[warn] session '{s.name}' is not managed yet; press Connect / Reconnect in helper first, then send command.")
             return
@@ -456,6 +511,7 @@ class MainWindow(QMainWindow):
             proc.stdin.flush()
             s.last_seen_ts = time.time()
             s.state_hint = 'command_sent'
+            s.last_error = ''
             self.save_sessions()
             self.refresh_list()
             self.list_widget.setCurrentRow(self.selected_index)
