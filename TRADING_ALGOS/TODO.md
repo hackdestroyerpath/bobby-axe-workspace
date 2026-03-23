@@ -1,60 +1,59 @@
 # TODO
 
-# PHASE 2 — PREPARE AND BUILD 12 STRATEGY MACHINES ON TOP OF PHASE 1
+# PHASE 3 — INTEGRATION VALIDATION, BTC PACKAGING, STORAGE HANDOFF READINESS
 
 ## Goal
-Перевести Phase 1 из уровня "контракты и общая база готовы" в уровень "12 машин можно поднимать без расхождения по runtime, входу, качеству и интерпретации".
+Подтвердить, что реализованный в `PHASE 2` contract-first runtime реально работает как единый operational contour для `Ben_Kim`:
+- все 12 машин реально исполняемы;
+- их outputs реально пригодны для orchestration;
+- `Ben_Kim` реально умеет собирать по `symbol` 12 отдельных объектов;
+- эти объекты реально можно передавать дальше в storage-ready форме;
+- переход от machine response к symbol-scoped storage unit зафиксирован и проверяем.
 
-Фаза 2 теперь не про придумать стратегии заново, а про аккуратное доведение до рабочего контура уже зафиксированной архитектуры:
-- `TICK_SOURCE_CONTRACT.md` остаётся единственным source-of-truth по входу;
-- `COMMON_TICK_READ_SPEC.md` остаётся единственным read-contract;
-- `common/tick_normalizer.py` обязателен для всех машин;
-- `common/tick_to_features_engine.py` обязателен для всех машин;
-- `SUBAGENT_REQUEST_FORMAT.*` и `SUBAGENT_RESPONSE_FORMAT.*` остаются общим transport contract.
+## Context after Phase 2
+`PHASE 2` уже дала готовую операционную базу:
+- frozen registry в `machine_registry.py`;
+- единый status model `ready / partial / error` в `runtime_contract.py`;
+- 4 shared family-core слоя в `strategy_cores.py`;
+- shared execution wrappers в `machines.py`;
+- orchestration expectations в `BEN_KIM_ORCHESTRATION_CONTRACT.md`;
+- тестовое покрытие runtime baseline в `tests/test_phase2_runtime.py` и `tests/test_strategy_cores.py`.
 
-## Что изменилось после сильной Phase 1
-Фаза 1 закрыта и из этого плана удалена.
-Теперь главная задача — не пересобирать базу, а не испортить её при реализации машин.
-
-### Главный принцип Phase 2
-Каждая машина должна добавлять только strategy-specific compute layer.
-Она не должна:
-- придумывать свой способ читать тики;
-- локально переагрегировать вход в обход shared engine;
-- по-своему трактовать partial/gaps/pagination;
-- возвращать свой transport format;
-- скрывать ограничения данных или симулировать уверенность там, где её нет.
-
-### Ключевые риски, которые надо закрыть в этой фазе
-На основе `PHASE_1_REPORT.md` в реализацию Phase 2 обязательно заложить:
-- контроль retention как operational constraint, а не как предположение;
-- контроль pagination/runtime drift при чтении `/ticks`;
-- одинаковую реакцию всех стратегий на `partial` окна;
-- явное разделение между shared features и strategy-specific features;
-- machine-level runtime discipline: одна машина = один machine_id = один runtime contract = один набор failure modes.
+Значит `PHASE 3` должна быть не про изобретение новой архитектуры, а про:
+1. integration validation;
+2. packaging layer для `Ben_Kim`;
+3. storage handoff readiness.
 
 ---
 
-# PHASE 2A — CROSS-CUTTING PREPARATION BEFORE CODING 12 MACHINES
+# PHASE 3A — RUNTIME INTEGRATION VALIDATION
 
-## Step 1. Freeze machine registry for all 12 executors
-До реализации логики создать жёсткий реестр всех 12 машин.
+## Goal of Phase 3A
+Проверить, что контур, собранный в `PHASE 2`, реально исполняется как единая система без расхождений между контрактом, runtime-поведением и фактическими error/status semantics.
+
+## Step 1. Freeze validation baseline for BTC
+Нужно зафиксировать единый validation baseline для первой полноценной проверки.
 
 ### Что зафиксировать
-Для каждой машины отдельно зафиксировать:
-- `machine_id`
-- `agent_id`
-- `strategy`
-- `timeframe`
-- `human_name`
-- `input_timeframe_target`
-- `primary_output_packet`
-- `runtime_entrypoint`
-- `api_key_id`
-- `build_version_policy`
-- `owner`
+- `symbol = BTCUSDC` как первый canonical validation symbol;
+- один `response_contract_version`;
+- один `source_contract_version`;
+- один базовый test window для первого прогона;
+- базовые runtime options:
+  - `strict_mode = false`;
+  - `include_incomplete_candle = false`;
+- отдельный повторный прогон на том же окне для deterministic check.
 
-### Полный список машин
+### Комментарий
+Phase 3 нельзя строить на случайных разных входах для разных машин. Нужен один понятный baseline, чтобы сравнение шло по общему контексту, а не по разным рыночным срезам.
+
+### Result of the step
+- один `PHASE_3_VALIDATION_BASELINE` для всех дальнейших проверок.
+
+## Step 2. Run all 12 machines on one BTC baseline window
+Нужно выполнить первый полный прогон всех 12 машин по одному и тому же BTC baseline window.
+
+### Обязательный набор машин
 - `RSI_MACD_1M`
 - `RSI_MACD_5M`
 - `RSI_MACD_60M`
@@ -68,443 +67,362 @@
 - `ELLIOTT_5M`
 - `ELLIOTT_60M`
 
-### Комментарий
-Это нужно сделать до кода, чтобы потом не появилось 12 почти одинаковых, но operationally разных исполнителей.
-
-### Результат шага
-- один `machine registry` на все 12 машин;
-- у каждой машины есть жёсткая identity и runtime-привязка.
-
-## Step 2. Freeze common runtime pipeline for every machine
-Нужно заранее зафиксировать один и тот же lifecycle вызова для всех машин.
-
-### Канонический pipeline
-1. принять request по общему schema;
-2. проверить обязательные поля запроса;
-3. проверить доступную глубину окна относительно retention;
-4. прочитать тики через общий read contract;
-5. прогнать данные через `tick_normalizer`;
-6. прогнать `normalized ticks` через `tick_to_features_engine`;
-7. посчитать только strategy-specific indicators;
-8. собрать `summary`;
-9. выставить `status` и `meta`;
-10. вернуть response по общему schema.
-
-### Что запретить явно
-- strategy code не должен ходить в таблицу напрямую в обход общего read layer;
-- strategy code не должен сам считать quality flags, если они уже есть из shared pipeline;
-- strategy code не должен переписывать `status` без связи с `meta.is_partial` и `errors`.
+### Что проверить
+- registry-addressing работает без ручных строковых догадок;
+- request проходит `validate_request()`;
+- shared normalization проходит;
+- shared feature engine проходит;
+- family-core compute проходит;
+- response собирается по единому schema.
 
 ### Комментарий
-Если это не зафиксировать до реализации, Phase 1 формально останется, но фактически каждая машина снова станет отдельным мини-проектом.
+Это первый реальный integration checkpoint. На этом шаге уже нельзя ссылаться только на дизайн-документы — нужно подтверждение реального прогона.
 
-### Результат шага
-- один runtime execution contract для всех 12 машин.
+### Result of the step
+- первый `BTC full 12-machine integration run`.
 
-## Step 3. Freeze partial-data policy before strategy logic
-До реализации индикаторов нужно утвердить реакцию на неидеальные входные окна.
+## Step 3. Validate contract completeness against actual runtime
+Нужно проверить, что runtime реально возвращает то, что обещает общий response contract.
 
-### Что определить
-Для всех 12 машин одинаково определить:
-- когда окно считается `ready`;
-- когда окно считается `partial`;
-- когда ответ должен быть `error`;
-- какие `partial_reason` передаются дальше без переименования;
-- можно ли считать strategy-specific indicators на partial окне;
-- какие поля обязаны оставаться заполненными даже при `partial`;
-- когда `summary.confidence` понижается автоматически из-за качества входа.
+### Проверять
+- top-level response fields;
+- `status`;
+- `summary`;
+- `meta`;
+- `errors`;
+- strategy-specific `features`;
+- traceability fields:
+  - `machine_id`;
+  - `api_key_id`;
+  - `build_version`;
+  - `source_contract_version`;
+  - `coverage_ratio`;
+  - `is_partial`;
+  - `partial_reason`.
 
-### Минимальная operational логика
-- `retention_truncation` не маскировать как нормальное окно;
-- `pagination_truncation` не маскировать как complete read;
-- `empty_window` не превращать в нейтральный market opinion;
-- `gap_heavy_window` должен снижать confidence и явно отражаться в `errors/meta`.
+### Blocker conditions
+- critical top-level fields отсутствуют;
+- response schema формально невалиден;
+- traceability поля не совпадают с runtime expectations;
+- machine output нельзя однозначно трактовать downstream.
 
-### Комментарий
-Это критично, потому что проблема в runtime обычно не в самой формуле RSI или Fibonacci, а в том, что стратегия делает вид, будто вход полон и чист.
+### Result of the step
+- `contract completeness matrix` по всем 12 машинам.
 
-### Результат шага
-- единая policy обработки `ready / partial / error` для всех 12 машин.
+## Step 4. Validate status honesty
+Это один из ключевых шагов всей фазы.
 
-## Step 4. Freeze warmup policy per timeframe and per strategy family
-Shared engine уже даёт базовые candles/features, но стратегии не смогут считаться без минимального окна истории.
+### Нужно доказать
+- `ready` не рисуется при degraded input;
+- `partial` не теряется между runtime и downstream interpretation;
+- `error` не маскируется как usable packet.
 
-### Что определить
-Для каждой strategy-family и каждого timeframe зафиксировать:
-- минимальный warmup window;
-- рекомендуемый рабочий window;
-- минимальное число свечей для valid output;
-- поведение при недостаточном warmup;
-- является ли выход `partial` или `error`, если warmup не добран.
-
-### Обязательные комментарии по стратегиям
-- `RSI_MACD`: warmup нужен не только для RSI(14), но и для устойчивого MACD/EMA-состояния;
-- `LEVELS_FIBO_HV`: нужен диапазон, достаточный для swing detection и volume profile, иначе уровни будут случайными;
-- `VOLUME`: relative volume без baseline-window бессмысленен;
-- `ELLIOTT`: самый требовательный к структуре и самый опасный с точки зрения ложной уверенности.
-
-### Результат шага
-- одна таблица warmup-требований на 12 машин.
-
-## Step 5. Freeze summary generation rules
-Поскольку у всех машин общий response schema, надо заранее описать, как строится `summary`.
-
-### Что определить
-Для каждой strategy-family нужно зафиксировать:
-- как вычисляется `summary.state`;
-- как выставляется `summary.strength`;
-- как ограничивается `summary.confidence`;
-- какие strategy-specific conditions обязательно попадают в `summary.note`;
-- как quality flags влияют на итоговый summary.
+### Отдельно проверить
+- `retention_truncation`;
+- `pagination_truncation`;
+- `gap_heavy_window`;
+- `empty_window`.
 
 ### Комментарий
-Без этого 12 машин формально будут возвращать одинаковый schema, но фактически будут разговаривать на 12 разных языках.
+Status model уже существует в `runtime_contract.py`. Теперь нужно проверить, что она operationally выдерживается и не ломается на реальном исполнении.
 
-### Результат шага
-- единая policy построения `summary` поверх strategy-specific output.
+### Result of the step
+- `status honesty report`.
+
+## Step 5. Validate warmup behavior per machine family
+Warmup policy уже зафиксирована в frozen registry. Теперь её нужно проверить на практике.
+
+### Проверить
+- `RSI_MACD` не даёт вид ready без достаточного числа candles;
+- `LEVELS_FIBO_HV` не делает сильные structural claims без глубины окна;
+- `VOLUME` не даёт сильный вывод без адекватного baseline;
+- `ELLIOTT` не поднимает confidence на слабой структуре.
+
+### Комментарий
+Если warmup-политика существует только в коде, но не выдерживается в фактическом output, то Phase 2 формально есть, а operational discipline нет.
+
+### Result of the step
+- `warmup behavior validation` по всем 4 strategy families.
+
+## Step 6. Validate failure catalog vs actual emitted errors
+Это прямое следствие ограничений, зафиксированных в `PHASE_2_REPORT.md`.
+
+### Нужно сделать
+- собрать реально эмитируемые error codes из runtime;
+- сравнить их с `FAILURE_MODE_MATRIX`;
+- сравнить их с retry semantics из orchestration contract;
+- выделить три класса:
+  - полностью синхронизировано;
+  - частично синхронизировано;
+  - требует формализации.
+
+### Особое внимание
+- `READ_TIMEOUT` фигурирует в retry expectations, но не полностью синхронизирован как template failure code;
+- runtime-generated коды вроде `INPUT_GAP_DETECTED` и `EMPTY_WINDOW` должны быть приведены к общей taxonomy или явно описаны как sanctioned exceptions.
+
+### Result of the step
+- `failure taxonomy reconciliation report`.
+
+## Step 7. Mark per-machine runtime readiness
+После валидации каждой машине нужно присвоить итоговый runtime readiness verdict.
+
+### Допустимые статусы
+- `ready`;
+- `partial`;
+- `blocked`.
+
+### Правила
+#### ready
+- response schema complete;
+- status semantics честные;
+- warmup behavior корректен;
+- payload usable downstream.
+
+#### partial
+- машина operationally работает;
+- но есть контролируемые ограничения, которые нельзя скрывать.
+
+#### blocked
+- есть contract mismatch;
+- broken schema;
+- unstable runtime;
+- некорректные status/error semantics;
+- или response нельзя использовать как downstream unit.
+
+### Result of the step
+- `12-machine runtime readiness matrix`.
 
 ---
 
-# PHASE 2B — IMPLEMENT STRATEGY FAMILY: RSI_MACD
+# PHASE 3B — BEN_KIM SYMBOL PACKAGING LAYER
 
-## Step 6. Build shared RSI_MACD compute module
-Сначала не делать 3 независимые реализации, а один общий strategy-core для семейства `RSI_MACD`.
+## Goal of Phase 3B
+Проверить, что `Ben_Kim` умеет работать не только как наблюдатель runtime, но и как packaging layer, который после пинга по symbol формирует 12 отдельных symbol-scoped objects.
 
-### Что должно быть внутри
-- вход: candles и общие microstructure fields из shared engine;
-- расчёт `RSI(14)`;
-- расчёт `EMA(12)`;
-- расчёт `EMA(26)`;
-- расчёт `MACD line`;
-- расчёт `signal line`;
-- расчёт `histogram`;
-- derivation для `rsi_zone`;
-- derivation для `rsi_slope`;
-- derivation для `macd_state`;
-- derivation для `hist_state`;
-- derivation для `momentum_state`;
-- derivation для `momentum_strength`.
+## Step 8. Freeze symbol-object contract
+Нужно зафиксировать, что считается одним итоговым объектом `Ben_Kim`.
 
-### Что проверить концептуально
-- формулы должны работать одинаково на `1m`, `5m`, `60m`;
-- различаться должен timeframe input, а не business logic;
-- incomplete last candle не должен бездумно искажать momentum-вывод.
+### Один объект =
+`1 symbol + 1 strategy + 1 timeframe + 1 machine response`
 
-### Комментарий
-Правка относительно старого плана: сначала не "поднять 3 машины", а сделать один reusable family-core и потом уже обернуть его в 3 runtime-машины.
+### Минимально обязательные поля объекта
+- `symbol`;
+- `strategy`;
+- `timeframe`;
+- `machine_id`;
+- `agent_id`;
+- `status`;
+- `summary`;
+- `meta`;
+- `features`;
+- `request_id`;
+- `generated_at`.
 
-### Результат шага
-- один reusable `RSI_MACD` strategy-core.
-
-## Step 7. Wrap RSI_MACD into 3 machine executors
-После family-core поднять:
-- `RSI_MACD_1M`
-- `RSI_MACD_5M`
-- `RSI_MACD_60M`
-
-### Для каждой машины отдельно зафиксировать
-- какой timeframe она запрашивает у shared engine;
-- какой warmup обязателен;
-- какие output fields обязательны;
-- какие downgrade rules по confidence применяются;
-- какие failure modes считаются retryable.
-
-### Обязательные поля семейства
-- `timestamp`
-- `timeframe`
-- `rsi_value`
-- `rsi_zone`
-- `rsi_slope`
-- `macd_line`
-- `signal_line`
-- `macd_hist`
-- `macd_state`
-- `hist_state`
-- `momentum_state`
-- `momentum_strength`
+### Обязательные quality / traceability fields
+- `is_partial`;
+- `partial_reason`;
+- `coverage_ratio`;
+- `data_points`;
+- `build_version`;
+- `source_contract_version`;
+- `api_key_id`.
 
 ### Комментарий
-1m/5m/60m должны быть разными машинами operationally, но не разными реализациями формул.
+Это уже не просто response sub-agent машины. Это единица хранения и оркестрации для следующего этапа.
 
-### Результат шага
-- 3 отдельные runtime-машины семейства `RSI_MACD`.
+### Result of the step
+- `Ben_Kim symbol object contract`.
+
+## Step 9. Build the first BTC package of 12 objects
+После пинга на `BTCUSDC` `Ben_Kim` должен собрать ровно 12 отдельных объектов.
+
+### Обязательный состав пакета
+1. `BTCUSDC + RSI_MACD + 1m`
+2. `BTCUSDC + RSI_MACD + 5m`
+3. `BTCUSDC + RSI_MACD + 60m`
+4. `BTCUSDC + LEVELS_FIBO_HV + 1m`
+5. `BTCUSDC + LEVELS_FIBO_HV + 5m`
+6. `BTCUSDC + LEVELS_FIBO_HV + 60m`
+7. `BTCUSDC + VOLUME + 1m`
+8. `BTCUSDC + VOLUME + 5m`
+9. `BTCUSDC + VOLUME + 60m`
+10. `BTCUSDC + ELLIOTT + 1m`
+11. `BTCUSDC + ELLIOTT + 5m`
+12. `BTCUSDC + ELLIOTT + 60m`
+
+### Критичное правило
+Это должны быть именно 12 отдельных objects, а не один merged blob или один свободный summary.
+
+### Result of the step
+- первый `BTC package` из 12 отдельных objects.
+
+## Step 10. Validate packaging fidelity
+Нужно проверить, что при упаковке machine response → symbol object ничего не искажается и не теряется.
+
+### Проверять
+- не теряется `machine_id`;
+- не теряется `strategy` и `timeframe`;
+- не теряется `status`;
+- не теряется `partial_reason`;
+- не теряется traceability;
+- `summary` и `features` не искажаются;
+- `error` packets не превращаются в usable objects без маркировки.
+
+### Комментарий
+Если runtime правильный, но packaging деформирует объект, downstream storage и orchestration будут строиться на испорченном контуре.
+
+### Result of the step
+- `packaging fidelity report`.
+
+## Step 11. Freeze object-level readiness rules
+Нужно отдельно зафиксировать readiness не только для машины, но и для итогового symbol object.
+
+### Допустимые object-level статусы
+- `ready`;
+- `partial`;
+- `blocked`.
+
+### Логика
+Даже если машина отдала response, итоговый object всё ещё может быть:
+- плохо упакован;
+- лишён traceability;
+- некорректно промаркирован;
+- непригоден для storage handoff.
+
+### Result of the step
+- `12-object readiness matrix`.
+
+## Step 12. Define Ben_Kim ping-run behavior
+Нужно формально зафиксировать, как работает запуск после пользовательского пинга по symbol.
+
+### После пинга `Ben_Kim` должен
+1. определить целевой `symbol`;
+2. адресовать нужные 12 машин через frozen registry;
+3. получить 12 machine outputs;
+4. привести их к symbol-object contract;
+5. пометить object-level readiness;
+6. подготовить batch к передаче в storage layer.
+
+### Отдельно определить
+- как выглядит один `ping-run`;
+- когда допустим partial batch;
+- когда run считается failed;
+- как маркируется incomplete 12-object run;
+- можно ли временно вернуть degraded batch без полной остановки контура.
+
+### Result of the step
+- `Ben_Kim ping-run contract`.
 
 ---
 
-# PHASE 2C — IMPLEMENT STRATEGY FAMILY: LEVELS_FIBO_HV
+# PHASE 3C — STORAGE HANDOFF READINESS AND ACCEPTANCE
 
-## Step 8. Build shared LEVELS_FIBO_HV compute module
-Собрать один strategy-core для семейства `LEVELS_FIBO_HV`.
+## Goal of Phase 3C
+Довести `Ben_Kim` outputs до состояния, где они уже готовы передаваться дальше как storage-ready units, даже если финальная production-инструкция для `Jack` будет уточняться отдельно.
 
-### Что должно быть внутри
-- swing detection на shared candles;
-- выделение локальных support / resistance;
-- выбор последнего рабочего swing range;
-- расчёт Fibonacci levels по этому range;
-- horizontal volume profile;
-- `POC`;
-- `value_area_high`;
-- `value_area_low`;
-- derivation контекстных полей по отношению цены к уровням.
+## Step 13. Freeze storage-ready envelope
+Нужно зафиксировать форму одного storage-ready объекта.
 
-### Обязательные design-решения
-Надо заранее зафиксировать:
-- как считается swing high / swing low;
-- что считать "рабочим" swing range;
-- как выбирать levels при конфликте нескольких swing-структур;
-- как строить volume profile по окну;
-- как определять `near` для fib/POC/levels;
-- что делать, если структуры недостаточно.
+### Обязательные поля envelope
+- `symbol`;
+- `strategy`;
+- `timeframe`;
+- `machine_id`;
+- `agent_id`;
+- `request_id`;
+- `generated_at`;
+- `status`;
+- `summary`;
+- `meta`;
+- `features`;
+- `errors`;
+- `response_contract_version`.
+
+### Ключевое правило
+`one machine response = one storage object`.
 
 ### Комментарий
-Это семейство наиболее чувствительно к расплывчатым определениям. Если не зафиксировать правила заранее, output будет выглядеть убедительно, но окажется недетерминированным.
+Это точка перехода от runtime semantics к storage discipline. Объект должен быть self-contained и downstream-readable.
 
-### Результат шага
-- один reusable `LEVELS_FIBO_HV` strategy-core.
+### Result of the step
+- `storage-ready envelope` для `Ben_Kim -> Jack`.
 
-## Step 9. Wrap LEVELS_FIBO_HV into 3 machine executors
-Поднять:
-- `LEVELS_FIBO_HV_1M`
-- `LEVELS_FIBO_HV_5M`
-- `LEVELS_FIBO_HV_60M`
+## Step 14. Define batch acceptance rules for 12-object handoff
+Нужно зафиксировать правила приёма полного пакета по symbol.
 
-### Обязательные поля семейства
-- `nearest_support`
-- `nearest_resistance`
-- `distance_to_support`
-- `distance_to_resistance`
-- `nearest_fib_ratio`
-- `nearest_fib_level`
-- `price_vs_fib`
-- `hv_poc`
-- `value_area_high`
-- `value_area_low`
-- `inside_value_area`
-- `price_vs_poc`
-- `structure_state`
-- `level_context_strength`
+### Определить
+- когда 12-object batch считается complete;
+- можно ли передавать batch с `partial` objects;
+- можно ли передавать batch с `blocked` objects;
+- когда нужен fail-fast;
+- как маркировать неполный batch;
+- нужен ли общий `batch_status`.
 
-### Специальные комментарии
-- `1m` должен быть наиболее консервативным по structural claims;
-- `60m` требует самого аккуратного контроля retention depth;
-- если swing structure неубедительна, машина должна честно снижать confidence, а не дорисовывать уровни.
+### Комментарий
+`Jack` не должен получить 9 объектов из 12 без явной маркировки, что пакет деградирован и почему именно.
 
-### Результат шага
-- 3 отдельные runtime-машины семейства `LEVELS_FIBO_HV`.
+### Result of the step
+- `batch handoff acceptance rules`.
+
+## Step 15. Produce PHASE 3 report
+По завершении фазы должен быть подготовлен формальный отчёт.
+
+### В отчёте должно быть
+- результаты 12-machine integration validation;
+- reconciliation по failure taxonomy;
+- готовность packaging layer;
+- готовность первого `BTC package` из 12 объектов;
+- storage handoff readiness;
+- список blockers;
+- список known limitations;
+- итоговое решение:
+  - `PHASE 3 accepted`;
+  - или `PHASE 3 partial`;
+  - или `PHASE 3 blocked`.
+
+### Result of the step
+- `PHASE_3_REPORT.md`.
 
 ---
 
-# PHASE 2D — IMPLEMENT STRATEGY FAMILY: VOLUME
+# DEFINITION OF DONE FOR PHASE 3
 
-## Step 10. Build shared VOLUME compute module
-Сначала собрать общий strategy-core для семейства `VOLUME`.
-
-### Что должно быть внутри
-- `current_volume`;
-- `avg_volume`;
-- `relative_volume`;
-- `volume_spike_flag`;
-- `buy_volume` и `sell_volume` как strategy payload поверх shared base;
-- `volume_delta`;
-- `imbalance_ratio`;
-- derivation `pressure_side`;
-- derivation `volume_confirmation_state`;
-- derivation `flow_strength`.
-
-### Что нужно уточнить заранее
-- какое окно брать для `avg_volume`;
-- что считать baseline для `relative_volume`;
-- как отличать spike от обычного ускорения;
-- как интерпретировать высокий объём против движения цены;
-- как incomplete last candle влияет на текущий volume reading.
-
-### Комментарий
-Формально это самая "простая" семья, но operationally она легко врёт, если volume baseline определён нестрого.
-
-### Результат шага
-- один reusable `VOLUME` strategy-core.
-
-## Step 11. Wrap VOLUME into 3 machine executors
-Поднять:
-- `VOLUME_1M`
-- `VOLUME_5M`
-- `VOLUME_60M`
-
-### Обязательные поля семейства
-- `current_volume`
-- `avg_volume`
-- `relative_volume`
-- `volume_spike_flag`
-- `buy_volume`
-- `sell_volume`
-- `volume_delta`
-- `imbalance_ratio`
-- `pressure_side`
-- `volume_confirmation_state`
-- `flow_strength`
-
-### Специальные комментарии
-- нельзя путать volume pressure с directional signal;
-- volume spike должен оставаться контекстом, а не магическим trigger;
-- если volume baseline невалиден, итог обязан понижаться минимум до `partial` или low-confidence.
-
-### Результат шага
-- 3 отдельные runtime-машины семейства `VOLUME`.
+`PHASE 3` считается завершённой только если одновременно выполнено всё ниже:
+- на `BTCUSDC` прогнаны все 12 машин;
+- по каждой машине есть runtime readiness verdict;
+- сверены фактические emitted errors и failure taxonomy;
+- подтверждена честность `ready / partial / error`;
+- подтверждено соблюдение warmup policy;
+- `Ben_Kim` умеет собирать 12 symbol-scoped objects по одному symbol;
+- сформирован первый `BTCUSDC` batch из 12 объектов;
+- по каждому объекту есть object-level readiness verdict;
+- зафиксирован storage-ready envelope;
+- зафиксированы batch acceptance rules;
+- выпущен `PHASE_3_REPORT.md`.
 
 ---
 
-# PHASE 2E — IMPLEMENT STRATEGY FAMILY: ELLIOTT
+# BLOCKERS FOR PHASE 3
 
-## Step 12. Build shared ELLIOTT compute module
-Это семейство нужно строить самым последним, после всех более детерминированных слоёв.
-
-### Что должно быть внутри
-- pivot highs / lows;
-- short and medium swings;
-- local trend structure;
-- candidate patterns;
-- Elliott candidate families;
-- derivation для `trend_state`;
-- derivation для `structure_state`;
-- derivation для `current_leg_direction`;
-- derivation для `current_leg_strength`;
-- derivation для `correction_depth_state`;
-- derivation для `pattern_candidate`;
-- derivation для `pattern_state`;
-- derivation для `elliott_candidate_family`;
-- derivation для `elliott_direction_candidate`;
-- derivation для `elliott_confidence_state`.
-
-### Жёсткие ограничения
-- `candidate != confirmed` должно быть зашито в runtime и wording;
-- default confidence — low, пока нет сильного подтверждения;
-- при data gaps или partial input confidence нельзя повышать;
-- нельзя возвращать псевдо-точные Elliott labels при слабой структуре.
-
-### Комментарий
-Правка к старому плану: Elliott нельзя реализовывать как "ещё одну обычную стратегию". Это должен быть кандидатный, максимально консервативный слой поверх уже проверенной базы.
-
-### Результат шага
-- один reusable `ELLIOTT` strategy-core.
-
-## Step 13. Wrap ELLIOTT into 3 machine executors
-Поднять:
-- `ELLIOTT_1M`
-- `ELLIOTT_5M`
-- `ELLIOTT_60M`
-
-### Обязательные поля семейства
-- `trend_state`
-- `structure_state`
-- `current_leg_direction`
-- `current_leg_strength`
-- `correction_depth_state`
-- `pattern_candidate`
-- `pattern_state`
-- `elliott_candidate_family`
-- `elliott_direction_candidate`
-- `elliott_confidence_state`
-
-### Специальные комментарии
-- `1m` почти всегда должен оставаться максимально осторожным;
-- `60m` полезнее структурно, но сильнее зависит от глубины истории;
-- при недостатке структуры машина должна честно говорить `unclear`, а не сочинять wave narrative.
-
-### Результат шага
-- 3 отдельные runtime-машины семейства `ELLIOTT`.
+Следующее считается blocker:
+- хотя бы одна машина не может быть стабильно вызвана через frozen registry;
+- response schema ломается на runtime;
+- traceability fields отсутствуют или несогласованы;
+- status semantics не совпадают с фактическим качеством входа;
+- failure taxonomy расходится с реальным runtime так, что orchestration не может надёжно трактовать retryability;
+- `Ben_Kim` не может собрать ровно 12 отдельных objects по `BTCUSDC`;
+- object-level packaging теряет identity, status или quality flags;
+- storage-ready envelope не позволяет downstream хранить объект как отдельную единицу.
 
 ---
 
-# PHASE 2F — OPERATIONAL HARDENING OF ALL 12 MACHINES
+# FINAL COMMENT ON PHASE 3
 
-## Step 14. Standardize machine-specific failure modes
-После реализации strategy families отдельно описать failure mode matrix для всех 12 машин.
+После фактически реализованной `PHASE 2` следующая фаза должна быть не про новую архитектуру, а про проверку её работоспособности в бою на одном символе и подготовку `Ben_Kim` к роли operational layer между machine runtime и storage.
 
-### Для каждой машины определить
-- input validation failures;
-- retention failures;
-- pagination/read failures;
-- normalization failures;
-- insufficient warmup failures;
-- feature computation failures;
-- output schema failures;
-- transport failures.
+Правильная последовательность теперь такая:
+- сначала проверить, что 12-machine runtime реально работает как единый контур;
+- потом научить `Ben_Kim` упаковывать outputs в 12 symbol-scoped objects;
+- потом довести эти объекты до storage-ready handoff.
 
-### Что важно
-У каждого failure mode должно быть:
-- machine-readable `code`;
-- `severity`;
-- `scope`;
-- `retryable` флаг;
-- понятное сообщение для orchestration layer.
-
-### Результат шага
-- одна failure-mode matrix по всем 12 машинам.
-
-## Step 15. Standardize build/version metadata
-До передачи в orchestration слой нужно обеспечить traceability.
-
-### Что обязать для всех машин
-Каждый response обязан стабильно нести:
-- `machine_id`
-- `api_key_id`
-- `build_version`
-- `source_contract_version`
-- `data_points`
-- `coverage_ratio`
-- `is_partial`
-- `partial_reason`
-
-### Комментарий
-Без этого потом невозможно будет отличить problem in strategy logic от problem in runtime/build/input quality.
-
-### Результат шага
-- traceable meta contract для всех 12 машин.
-
-## Step 16. Freeze orchestration expectations for Ben_Kim
-Подготовка к следующей фазе должна начаться уже здесь.
-
-### Что нужно определить заранее
-Для Ben_Kim на уровне контракта описать:
-- как он адресует конкретную машину;
-- как он различает `ready / partial / error`;
-- какие ошибки он может ретраить;
-- какие ответы можно агрегировать;
-- какие ответы надо отбрасывать или помечать как degraded;
-- как он должен относиться к low-confidence Elliott output;
-- как он должен сопоставлять 1m / 5m / 60m по одной стратегии.
-
-### Комментарий
-Если этого не сделать в конце Phase 2, то в Phase 3/4 начнётся обратная подгонка машин под оркестратора.
-
-### Результат шага
-- machine-to-orchestrator readiness contract.
-
----
-
-# DEFINITION OF DONE FOR PHASE 2
-
-Phase 2 считается подготовленной и завершённой только если одновременно выполнено всё ниже:
-- Phase 1 не переписан и не обойдён, а реально использован как обязательная база;
-- существует единый machine registry на все 12 машин;
-- существует один runtime pipeline, обязательный для всех машин;
-- существуют family-core реализации для `RSI_MACD`, `LEVELS_FIBO_HV`, `VOLUME`, `ELLIOTT`;
-- поверх них подняты 12 отдельных runtime-машин;
-- у каждой машины зафиксированы warmup rules, partial rules и failure modes;
-- все машины возвращают output в одном response contract;
-- ни одна машина не скрывает retention/pagination/gap проблемы под видом normal output;
-- summary generation согласована с quality flags;
-- подготовлен machine-to-orchestrator contract для следующей фазы.
-
----
-
-# FINAL COMMENT ON PHASE 2
-
-Старая формулировка "просто поднять 12 машин" слишком грубая.
-После сильной Phase 1 Phase 2 должна быть не списком 12 параллельных поделок, а управляемой сборкой:
-- сначала общий runtime discipline;
-- потом 4 reusable strategy families;
-- потом 12 operational wrappers;
-- потом hardening под validation и orchestration.
-
-Именно так Phase 2 не разрушит фундамент, который уже качественно собран в Phase 1.
+Именно так `PHASE 3` превращает уже собранную contract-first систему в operationally usable pipeline.
