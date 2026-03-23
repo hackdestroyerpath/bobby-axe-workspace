@@ -54,10 +54,18 @@ Avoid calling the whole task a generic `blocker` when only the external delivery
 ## Specific rule for Jusetta
 ### Internal handoff
 - use `sessions_send` for orchestration/tasking
+- treat statuses like `task_received` / `payload_ready` as orchestration-only
 
 ### External Telegram send to Boss
 - use explicit delivery path
 - do not rely on `sessions_send` confirm path as the canonical delivery proof
+- canonical pattern:
+  `openclaw agent --agent jusetta --deliver --channel telegram --reply-account jusetta --reply-to 6964967907 --message "<text>"`
+
+### Confirmed working model
+- Step 1: task through `agent:jusetta:main`
+- Step 2: explicit outbound Telegram delivery
+- success is determined by actual external delivery, not by internal `sessions_send` ack noise
 
 ---
 

@@ -6,6 +6,11 @@ Operational instruction confirmed by Bobby Axe.
 ## Rule
 Sending via Jusetta must be treated as two separate steps.
 
+## Status
+Confirmed working in practice on 2026-03-23:
+- Step 1 via `sessions_send` produced `payload_ready`
+- Step 2 via explicit Telegram delivery path reached the Boss in Telegram
+
 ### Step 1 — Orchestration / tasking
 Use:
 - `sessions_send(sessionKey="agent:jusetta:main", ...)`
