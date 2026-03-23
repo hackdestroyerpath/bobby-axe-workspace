@@ -1,0 +1,21 @@
+Босс,
+
+Отправляю архив FUBOS по Windows helper.
+
+Во вложении:
+- FUBOS.zip — полный пакет папки FUBOS
+
+Внутри:
+- windows_session_helper
+- инструкция по запуску
+- setup/docs
+- build_exe.bat для сборки Windows .exe
+
+Контроль:
+- SHA256: f798cbff9562bcc08276c9c73830b6b26dd73cbb5dfe62e09c1d7e17b9522f00
+- Commit: 4a4aa6f
+- Timestamp: 2026-03-23 09:16 Europe/Moscow
+
+Если нужно, следующим сообщением могу отдельно прислать короткий техразбор helper и план доработок.
+
+— Jack
