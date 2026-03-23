@@ -156,7 +156,7 @@ curl \
 ```bash
 curl \
   -H "X-API-Key: YOUR_API_KEY" \
-  "http://127.0.0.1:8791/ticks?symbol=BTCUSDC&from=2026-03-23T00:00:00+00:00&to=2026-03-23T12:00:00+00:00&limit=500"
+  "http://127.0.0.1:8791/ticks?symbol=BTCUSDC&from=2026-03-23T00:00:00Z&to=2026-03-23T12:00:00Z&limit=500"
 ```
 
 ### Получить следующую страницу `/ticks`
@@ -164,15 +164,15 @@ curl \
 ```bash
 curl \
   -H "X-API-Key: YOUR_API_KEY" \
-  "http://127.0.0.1:8791/ticks?symbol=BTCUSDC&from=2026-03-23T00:00:00+00:00&to=2026-03-23T12:00:00+00:00&limit=500&cursor_event_time=2026-03-23T11:59:58+00:00&cursor_trade_id=987654321"
+  "http://127.0.0.1:8791/ticks?symbol=BTCUSDC&from=2026-03-23T00:00:00+00:00&to=2026-03-23T12:00:00+00:00&limit=500&cursor_event_time=2026-03-23T11:59:58Z&cursor_trade_id=987654321"
 ```
 
 Поддерживаемые query-параметры:
 - `symbol` — обязательно
-- `from` — optional, ISO-8601
-- `to` — optional, ISO-8601
+- `from` — optional, ISO-8601 datetime with timezone offset; UTC only (`+00:00` or `Z`)
+- `to` — optional, ISO-8601 datetime with timezone offset; UTC only (`+00:00` or `Z`)
 - `limit` — optional, default `1000`, max `10000`
-- `cursor_event_time` — optional, ISO-8601; используется только вместе с `cursor_trade_id`
+- `cursor_event_time` — optional, ISO-8601 datetime with timezone offset; UTC only (`+00:00` or `Z`); используется только вместе с `cursor_trade_id`
 - `cursor_trade_id` — optional; используется только вместе с `cursor_event_time`
 
 ---
@@ -185,7 +185,11 @@ curl \
 
 ### Границы окна
 
-Если переданы `from` и/или `to`, сервер использует **inclusive**-границы:
+Параметры `from`, `to` и `cursor_event_time` принимаются только в ISO-8601 с timezone offset.
+Разрешён только UTC: используйте суффикс `Z` или offset `+00:00`.
+Naive datetime без offset сервер отклоняет с `400` и ошибкой `datetime must include UTC offset`.
+
+Если переданы `from` и/или `to`, сервер сначала нормализует их к UTC и затем использует **inclusive**-границы:
 - `event_time_utc >= from`
 - `event_time_utc <= to`
 
@@ -292,6 +296,7 @@ ORDER BY event_time_utc ASC, trade_id ASC
 - `400 symbol is required`
 - `400 invalid limit`
 - `400 invalid datetime format; use ISO-8601`
+- `400 datetime must include UTC offset`
 - `400 cursor_event_time and cursor_trade_id must be provided together`
 - `404 not_found`
 
