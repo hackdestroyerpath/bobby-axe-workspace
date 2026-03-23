@@ -277,9 +277,10 @@ class MainWindow(QMainWindow):
 
     def export_profiles(self) -> None:
         export_path = APP_DIR / "sessions.export.json"
-        export_path.write_text(CONFIG_PATH.read_text() if CONFIG_PATH.exists() else "[]")
+        export_store = SessionStore(export_path)
+        export_store.save(self.sessions)
         self.append_log(f"[ok] exported profiles to {export_path.name}")
-        self.runtime.record_action("export_profiles", result="ok", extra={"path": str(export_path)})
+        self.runtime.record_action("export_profiles", result="ok", extra={"path": str(export_path), "count": len(self.sessions)})
 
     def import_profiles(self) -> None:
         import_path = APP_DIR / "sessions.import.json"
@@ -287,6 +288,10 @@ class MainWindow(QMainWindow):
             self.append_log(f"[warn] import file not found: {import_path.name}")
             self.runtime.record_action("import_profiles", result="failed", error="file not found", extra={"path": str(import_path)})
             return
+        live_names = [s.name for s in self.sessions if self.runtime.get_live_process(s) is not None]
+        for s in list(self.sessions):
+            if self.runtime.get_live_process(s) is not None:
+                self.runtime.stop_session(s, reason="import profiles")
         import_store = SessionStore(import_path)
         self.sessions = import_store.load()
         for s in self.sessions:
@@ -294,11 +299,13 @@ class MainWindow(QMainWindow):
             s.state_hint = STATE_IMPORTED
             s.process_id = None
             s.last_error = ""
+            s.last_launch_ok = False
+            s.last_seen_ts = 0.0
         self.persist()
         self.refresh_list()
         self.list_widget.setCurrentRow(0)
-        self.append_log(f"[ok] imported profiles from {import_path.name}")
-        self.runtime.record_action("import_profiles", result="ok", extra={"count": len(self.sessions), "path": str(import_path)})
+        self.append_log(f"[ok] imported profiles from {import_path.name} | replaced={len(self.sessions)} | stopped_live={len(live_names)}")
+        self.runtime.record_action("import_profiles", result="ok", extra={"count": len(self.sessions), "path": str(import_path), "stopped_live": len(live_names)})
 
     def add_session(self) -> None:
         profile = SessionProfile(name="New Session", command="powershell -NoExit")

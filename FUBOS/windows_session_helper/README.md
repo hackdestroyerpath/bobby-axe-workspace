@@ -16,6 +16,15 @@ python app.py
 pip install -r requirements.txt
 ```
 
+## File layout
+- `app.py` — Qt UI and wiring
+- `models.py` — session model + status/state constants
+- `store.py` — profile persistence for `sessions.json` / import/export files
+- `runtime.py` — process lifecycle, output capture, action log, command journal, ack flow
+- `sessions.json` — active profile store
+- `logs/actions.jsonl` — structured helper actions
+- `logs/commands.jsonl` — command lifecycle journal
+
 ## Current stable behavior
 - session profiles persist in `sessions.json`
 - helper can launch, stop, reconnect, duplicate, import, and export profiles
@@ -25,6 +34,13 @@ pip install -r requirements.txt
 - structured action log is written to `logs/actions.jsonl`
 - command journal is written to `logs/commands.jsonl`
 - best-effort command ack markers are appended to sent commands and tracked in output
+- recent command activity is shown for the selected session in GUI
+
+## Import / export behavior
+- Export writes the current session set into `sessions.export.json`
+- Import reads `sessions.import.json`
+- Import stops helper-managed live sessions before replacing the in-memory profile set
+- Imported sessions are normalized to inactive/imported state before first use
 
 ## Status model
 
@@ -50,7 +66,7 @@ pip install -r requirements.txt
 - `accepted`
 - `acked`
 
-## Important limitation
+## Important limitations
 Command dispatch is still designed for helper-launched sessions.
 If you need `Send to Selected` to work reliably, first start the target session from inside the helper.
 
