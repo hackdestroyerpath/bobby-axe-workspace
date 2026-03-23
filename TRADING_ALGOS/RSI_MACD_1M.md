@@ -5,11 +5,13 @@
 
 ## Вход
 - входной тик-контракт: `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`
+- общий preprocessing-слой: `TRADING_ALGOS/common/tick_normalizer.py`
 - выбранный диапазон истории
 - источник: см. единый контракт, без локального пересказа
+- downstream-вход стратегии: только `normalized ticks`, а не raw tick stream
 
 ## Базовая агрегация
-Из тиков собрать свечи `1m`:
+Из `normalized ticks` общего слоя собрать свечи `1m`:
 - `open`
 - `high`
 - `low`

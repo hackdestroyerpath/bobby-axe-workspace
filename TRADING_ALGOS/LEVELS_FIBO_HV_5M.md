@@ -5,11 +5,13 @@
 
 ## Вход
 - входной тик-контракт: `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`
+- общий preprocessing-слой: `TRADING_ALGOS/common/tick_normalizer.py`
 - выбранный диапазон истории
 - источник: см. единый контракт, без локального пересказа
+- downstream-вход стратегии: только `normalized ticks`, а не raw tick stream
 
 ## Что строить
-Из тиков собрать свечи `5m`, затем построить:
+Из `normalized ticks` общего слоя собрать свечи `5m`, затем построить:
 - swings
 - support / resistance
 - Fibonacci grid по рабочему swing range

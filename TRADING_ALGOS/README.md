@@ -22,7 +22,8 @@
 Единый source-of-truth для входных тиков зафиксирован в `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`. Все 12 машин должны ссылаться на этот контракт и использовать его без локального пересказа.
 
 Дальше каждый алгоритм сам:
-- агрегирует тики в нужный ТФ
+- читает вход только через общий preprocessing-слой `TRADING_ALGOS/common/tick_normalizer.py`
+- агрегирует `normalized ticks` в нужный ТФ
 - считает свои признаки
 - по запросу отдаёт свой strategy-specific packet
 

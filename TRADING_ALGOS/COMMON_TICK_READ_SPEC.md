@@ -105,6 +105,20 @@ ORDER BY event_time_utc ASC, trade_id ASC
 
 Именно этот порядок считается правильным для расчётов и любых downstream-процедур.
 
+## Shared normalization layer
+
+После чтения сырых тиков любой клиент обязан прогнать их через общий preprocessing-слой `TRADING_ALGOS/common/tick_normalizer.py`.
+
+Слой обязан:
+- приводить `price` и `quantity` к одному числовому типу;
+- делать dedup по `(source, symbol, trade_id)`;
+- приводить финальную последовательность к `ORDER BY event_time_utc ASC, trade_id ASC`;
+- детектировать empty window;
+- считать gap_count и coverage_ratio по запрошенному окну;
+- выставлять `is_partial` / `partial_reason` для retention truncation, pagination truncation, empty window и gap-heavy windows.
+
+Ни одна стратегия не должна работать напрямую с raw ticks после этого шага; downstream-входом считаются только `normalized ticks`.
+
 ## Canonical SQL template
 
 ```sql
