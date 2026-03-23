@@ -2,244 +2,60 @@
 
 # PHASE 3 — INTEGRATION VALIDATION, BTC PACKAGING, STORAGE HANDOFF READINESS
 
+## Status
+Утверждено как актуальный рабочий план перед началом следующего цикла кодинга и интеграции.
+
 ## Goal
-Превратить уже собранный в `PHASE 2` contract-first runtime в проверяемый operational contour для `Ben_Kim`, не меняя архитектурную базу и не подменяя реальные проверки бумажным «вроде работает».
+Подтвердить, что реализованный в `PHASE 2` contract-first runtime реально работает как единый operational contour для `Ben_Kim`:
+- все 12 машин реально исполняемы;
+- их outputs реально пригодны для orchestration;
+- `Ben_Kim` реально умеет собирать по `symbol` 12 отдельных объектов;
+- эти объекты реально можно передавать дальше в storage-ready форме;
+- переход от machine response к symbol-scoped storage unit зафиксирован и проверяем.
 
-Эта фаза должна подтвердить сразу 3 вещи:
-- все 12 машин реально вызываются и возвращают usable outputs по единому контракту;
-- `Ben_Kim` умеет собирать по одному `symbol` ровно 12 отдельных symbol-scoped objects без потери identity, quality flags и traceability;
-- эти objects уже готовы к downstream handoff в отдельный object-storage domain через API-контракт.
-
-## Why this version replaces the old TO-DO_NEW
-Старая версия `TO-DO_NEW` оставалась планом про `PHASE 2`, хотя проект уже перешёл к следующей стадии.
-
-Новая версия оптимизирована под текущее состояние `TRADING_ALGOS`:
-- опирается на уже существующие `machine_registry.py`, `runtime_contract.py`, `strategy_cores.py`, `machines.py`;
-- не дублирует уже закрытую Phase 2;
-- разделяет **что можно подготовить без API-ключа** и **что должен вручную валидировать владелец с API-доступом**;
-- фиксирует путь `machine response -> Ben_Kim object -> storage-ready envelope` как основной operational deliverable.
-
-## Context after completed Phase 2
-К началу этой фазы уже считаем зафиксированным:
+## Context after Phase 2
+`PHASE 2` уже дала готовую операционную базу:
 - frozen registry в `machine_registry.py`;
 - единый status model `ready / partial / error` в `runtime_contract.py`;
 - 4 shared family-core слоя в `strategy_cores.py`;
 - shared execution wrappers в `machines.py`;
 - orchestration expectations в `BEN_KIM_ORCHESTRATION_CONTRACT.md`;
-- единые входные и выходные контракты (`TICK_SOURCE_CONTRACT.md`, `COMMON_TICK_READ_SPEC.md`, `SUBAGENT_*`).
+- тестовое покрытие runtime baseline в `tests/test_phase2_runtime.py` и `tests/test_strategy_cores.py`.
 
-Следствие: `PHASE 3` — это не новая архитектура и не ещё один redesign.
-Это фаза верификации, упаковки и handoff readiness.
-
-## Hard constraints for this phase
-- compute живёт на стороне 12 машин;
-- входные тики остаются в centralized tick storage;
-- runtime-машины не владеют данными и не должны считать себя source-of-truth;
-- доступ к tick storage идёт только через agreed API/read contract;
-- `Ben_Kim` собирает machine outputs в 12 отдельных objects;
-- objects должны быть готовы к записи в **отдельный** object-storage domain;
-- tick storage и object storage — разные operational domains даже если инфраструктурно они позже окажутся рядом;
-- traceability обязательна на всём пути: `request_id`, `api_key_id`, caller identity, timestamps, versions.
-
-## Practical constraint for current executor
-У текущего исполнителя нет API-ключа, поэтому фазу нужно вести в двух режимах:
-1. **offline / contract-prep** — всё, что можно зафиксировать, проверить и подготовить без реального API-вызова;
-2. **manual API validation** — всё, что должен прогнать владелец/оператор с доступом к реальному API.
-
-Это не побочная оговорка, а часть operational discipline: не симулировать живую интеграцию там, где нет реального доступа.
+Значит `PHASE 3` должна быть не про изобретение новой архитектуры, а про:
+1. integration validation;
+2. packaging layer для `Ben_Kim`;
+3. storage handoff readiness.
 
 ---
 
-# PHASE 3A — FREEZE VALIDATION BASELINE BEFORE ANY LIVE RUN
+# PHASE 3A — RUNTIME INTEGRATION VALIDATION
 
 ## Goal of Phase 3A
-До любых прогонов зафиксировать один baseline, чтобы все проверки шли по одному и тому же контексту, а не по случайным окнам и разным версиям контракта.
+Проверить, что контур, собранный в `PHASE 2`, реально исполняется как единая система без расхождений между контрактом, runtime-поведением и фактическими error/status semantics.
 
-## Step 1. Freeze the first canonical validation symbol
+## Step 1. Freeze validation baseline for BTC
+Нужно зафиксировать единый validation baseline для первой полноценной проверки.
+
 ### Что зафиксировать
 - `symbol = BTCUSDC` как первый canonical validation symbol;
-- один canonical source;
-- один owner-approved validation window;
-- один expected `response_contract_version`;
-- один expected `source_contract_version`.
-
-### Дополнительно зафиксировать
-- timezone = `UTC` на всём пути;
-- window boundaries трактуются как inclusive;
-- baseline должен быть одинаковым для всех 12 машин.
-
-### Result of the step
-- `PHASE_3_VALIDATION_BASELINE`.
-
-## Step 2. Freeze runtime options for the baseline run
-### Что зафиксировать
-- `strict_mode = false` для первого общего прогона;
-- `include_incomplete_candle = false` как baseline mode;
-- отдельный повторный прогон на том же окне для deterministic check;
-- отдельный optional прогон с `include_incomplete_candle = true` только как дополнительная проверка, не как основной baseline.
+- один `response_contract_version`;
+- один `source_contract_version`;
+- один базовый test window для первого прогона;
+- базовые runtime options:
+  - `strict_mode = false`;
+  - `include_incomplete_candle = false`;
+- отдельный повторный прогон на том же окне для deterministic check.
 
 ### Комментарий
-Сначала нужен один стабильный и интерпретируемый baseline. Эксперименты с режимами — только после него.
+Phase 3 нельзя строить на случайных разных входах для разных машин. Нужен один понятный baseline, чтобы сравнение шло по общему контексту, а не по разным рыночным срезам.
 
 ### Result of the step
-- `baseline runtime options`.
+- один `PHASE_3_VALIDATION_BASELINE` для всех дальнейших проверок.
 
-## Step 3. Freeze validation evidence format
-### Нужно заранее определить
-Для каждой live-проверки заранее собирать один и тот же evidence set:
-- request payload;
-- machine id;
-- response payload;
-- status;
-- errors;
-- `meta`;
-- timestamps;
-- request trace (`request_id`, `api_key_id`, caller identity если доступно);
-- run label / batch label.
+## Step 2. Run all 12 machines on one BTC baseline window
+Нужно выполнить первый полный прогон всех 12 машин по одному и тому же BTC baseline window.
 
-### Комментарий
-Если evidence format не зафиксирован заранее, после первых API-прогонов начнётся хаос: часть фактов будет в логах, часть в памяти, часть потеряется.
-
-### Result of the step
-- `validation evidence checklist`.
-
----
-
-# PHASE 3B — OFFLINE READINESS CHECKS (NO API KEY REQUIRED)
-
-## Goal of Phase 3B
-До живых API-тестов убедиться, что contracts, packaging rules и acceptance criteria уже определены и не потребуют пересборки после первого же реального запуска.
-
-## Step 4. Freeze what exactly counts as a valid machine response
-### Проверить и зафиксировать на уровне плана
-- top-level response fields обязательны и одинаково трактуются для всех 12 машин;
-- `status`, `summary`, `meta`, `errors`, `features` не должны теряться downstream;
-- traceability поля обязательны:
-  - `machine_id`;
-  - `api_key_id`;
-  - `build_version`;
-  - `source_contract_version`;
-  - `coverage_ratio`;
-  - `is_partial`;
-  - `partial_reason`.
-
-### Что считается blocker уже на этом уровне
-- downstream нельзя однозначно понять machine identity;
-- нет ясной границы между `meta` и `errors`;
-- `partial` semantics ещё можно «случайно потерять» при упаковке.
-
-### Result of the step
-- `machine response acceptance checklist`.
-
-## Step 5. Freeze status honesty expectations before the first live run
-### Нужно явно зафиксировать
-- `ready` нельзя считать допустимым при degraded input;
-- `partial` нельзя downcast-ить в нормальный usable packet без маркировки;
-- `error` нельзя передавать дальше как будто это обычный answer;
-- одинаково обрабатываются:
-  - `retention_truncation`;
-  - `pagination_truncation`;
-  - `gap_heavy_window`;
-  - `empty_window`.
-
-### Комментарий
-Это ключевой anti-self-deception пункт всей фазы.
-
-### Result of the step
-- `status honesty checklist`.
-
-## Step 6. Freeze runtime readiness verdict model per machine
-### Допустимые verdicts
-- `ready`;
-- `partial`;
-- `blocked`.
-
-### Логика verdict
-#### ready
-- schema complete;
-- status semantics честные;
-- warmup behavior корректен;
-- payload usable downstream.
-
-#### partial
-- runtime работает;
-- output usable только с explicit degraded-marking;
-- ограничения прозрачны и traceable.
-
-#### blocked
-- broken schema;
-- contract mismatch;
-- status/error semantics нельзя надёжно трактовать;
-- downstream не может использовать packet как unit.
-
-### Result of the step
-- `runtime readiness verdict model`.
-
-## Step 7. Freeze Ben_Kim symbol-object contract before live packaging
-### Один object =
-`1 symbol + 1 strategy + 1 timeframe + 1 machine response`
-
-### Минимально обязательные поля
-- `object_id`;
-- `batch_id`;
-- `symbol`;
-- `strategy`;
-- `timeframe`;
-- `machine_id`;
-- `agent_id`;
-- `request_id`;
-- `generated_at`;
-- `status`;
-- `summary`;
-- `meta`;
-- `features`;
-- `errors`.
-
-### Обязательные quality / traceability fields
-- `is_partial`;
-- `partial_reason`;
-- `coverage_ratio`;
-- `data_points`;
-- `build_version`;
-- `source_contract_version`;
-- `api_key_id`;
-- `input_window_from`;
-- `input_window_to`;
-- `compute_origin` или иной эквивалентный execution origin, если доступен.
-
-### Result of the step
-- `Ben_Kim symbol object contract`.
-
-## Step 8. Freeze idempotency basis for object packaging and write
-### Нужно определить заранее
-Повторный запуск не должен плодить бесконтрольные дубли.
-
-Минимально допустимая база идемпотентности:
-- `symbol + strategy + timeframe + request_id`;
-или
-- `symbol + strategy + timeframe + batch_id`.
-
-### Дополнительно определить
-- overwrite vs append-only policy;
-- duplicate handling rule;
-- object versioning rule, если потребуется;
-- как маркируется повторная запись того же logical object.
-
-### Result of the step
-- `idempotency and object identity policy`.
-
----
-
-# PHASE 3C — MANUAL API VALIDATION OF THE 12-MACHINE RUNTIME
-
-## Goal of Phase 3C
-С реальным API-доступом доказать, что контур действительно исполняется, а не только красиво описан.
-
-## Important ownership note
-Эти шаги требуют реального API-ключа и должны быть прогнаны владельцем/оператором вручную.
-Исполнитель без ключа не должен имитировать их завершение.
-
-## Step 9. Run all 12 machines on the same BTC baseline window
 ### Обязательный набор машин
 - `RSI_MACD_1M`
 - `RSI_MACD_5M`
@@ -254,108 +70,175 @@
 - `ELLIOTT_5M`
 - `ELLIOTT_60M`
 
-### Что подтвердить
-- addressing идёт через frozen registry;
-- request проходит единый validation path;
-- shared normalization отрабатывает одинаково;
-- shared feature engine не ломает pipeline;
-- family-core compute отрабатывает в рамках общего response contract;
-- outputs реально собираются по одному schema.
+### Что проверить
+- registry-addressing работает без ручных строковых догадок;
+- request проходит `validate_request()`;
+- shared normalization проходит;
+- shared feature engine проходит;
+- family-core compute проходит;
+- response собирается по единому schema.
+
+### Комментарий
+Это первый реальный integration checkpoint. На этом шаге уже нельзя ссылаться только на дизайн-документы — нужно подтверждение реального прогона.
 
 ### Result of the step
-- первый `BTC 12-machine integration run`.
+- первый `BTC full 12-machine integration run`.
 
-## Step 10. Validate API-backed tick access semantics
-### Нужно отдельно подтвердить
-- ни одна машина не обходит agreed API-read layer;
-- входные тики читаются только через канонический API contract;
-- API-read semantics не ломают `TICK_SOURCE_CONTRACT.md` и `COMMON_TICK_READ_SPEC.md`;
-- сохраняются inclusive boundaries, canonical ordering и pagination stability;
-- traceability входного чтения не теряется;
-- degraded input не маскируется как полноценный complete read.
+## Step 3. Validate contract completeness against actual runtime
+Нужно проверить, что runtime реально возвращает то, что обещает общий response contract.
 
-### Отдельно проверить partial reasons
-- `retention_truncation`;
-- `pagination_truncation`;
-- `gap_heavy_window`;
-- `empty_window`.
-
-### Result of the step
-- `tick API read validation report`.
-
-## Step 11. Validate contract completeness against actual runtime
-### Проверять на живых ответах
+### Проверять
 - top-level response fields;
 - `status`;
 - `summary`;
 - `meta`;
 - `errors`;
 - strategy-specific `features`;
-- все обязательные traceability fields.
+- traceability fields:
+  - `machine_id`;
+  - `api_key_id`;
+  - `build_version`;
+  - `source_contract_version`;
+  - `coverage_ratio`;
+  - `is_partial`;
+  - `partial_reason`.
 
 ### Blocker conditions
-- отсутствуют критичные поля;
-- response schema формально или operationally broken;
-- output нельзя однозначно трактовать downstream.
+- critical top-level fields отсутствуют;
+- response schema формально невалиден;
+- traceability поля не совпадают с runtime expectations;
+- machine output нельзя однозначно трактовать downstream.
 
 ### Result of the step
 - `contract completeness matrix` по всем 12 машинам.
 
-## Step 12. Validate status honesty on real degraded cases
-### Нужно доказать на фактических сценариях
+## Step 4. Validate status honesty
+Это один из ключевых шагов всей фазы.
+
+### Нужно доказать
 - `ready` не рисуется при degraded input;
-- `partial` доходит до downstream без потери;
+- `partial` не теряется между runtime и downstream interpretation;
 - `error` не маскируется как usable packet.
 
-### Проверяемые сценарии
+### Отдельно проверить
 - `retention_truncation`;
 - `pagination_truncation`;
 - `gap_heavy_window`;
 - `empty_window`.
 
+### Комментарий
+Status model уже существует в `runtime_contract.py`. Теперь нужно проверить, что она operationally выдерживается и не ломается на реальном исполнении.
+
 ### Result of the step
 - `status honesty report`.
 
-## Step 13. Validate warmup behavior per strategy family
+## Step 5. Validate warmup behavior per machine family
+Warmup policy уже зафиксирована в frozen registry. Теперь её нужно проверить на практике.
+
 ### Проверить
-- `RSI_MACD` не выдаёт псевдо-ready без достаточного числа candles;
-- `LEVELS_FIBO_HV` не делает сильные structural claims без нужной глубины окна;
-- `VOLUME` не поднимает уверенность без корректного baseline;
-- `ELLIOTT` остаётся candidate-heavy и conservative при слабой структуре.
+- `RSI_MACD` не даёт вид ready без достаточного числа candles;
+- `LEVELS_FIBO_HV` не делает сильные structural claims без глубины окна;
+- `VOLUME` не даёт сильный вывод без адекватного baseline;
+- `ELLIOTT` не поднимает confidence на слабой структуре.
+
+### Комментарий
+Если warmup-политика существует только в коде, но не выдерживается в фактическом output, то Phase 2 формально есть, а operational discipline нет.
 
 ### Result of the step
-- `warmup behavior validation` по 4 strategy families.
+- `warmup behavior validation` по всем 4 strategy families.
 
-## Step 14. Reconcile failure taxonomy with emitted runtime errors
+## Step 6. Validate failure catalog vs actual emitted errors
+Это прямое следствие ограничений, зафиксированных в `PHASE_2_REPORT.md`.
+
 ### Нужно сделать
-- собрать реально emitted error codes;
-- сверить их с `FAILURE_MODE_MATRIX` / agreed taxonomy;
-- сверить их с retry expectations для orchestration;
-- разложить на 3 класса:
-  - синхронизировано;
+- собрать реально эмитируемые error codes из runtime;
+- сравнить их с `FAILURE_MODE_MATRIX`;
+- сравнить их с retry semantics из orchestration contract;
+- выделить три класса:
+  - полностью синхронизировано;
   - частично синхронизировано;
   - требует формализации.
+
+### Особое внимание
+- `READ_TIMEOUT` фигурирует в retry expectations, но не полностью синхронизирован как template failure code;
+- runtime-generated коды вроде `INPUT_GAP_DETECTED` и `EMPTY_WINDOW` должны быть приведены к общей taxonomy или явно описаны как sanctioned exceptions.
 
 ### Result of the step
 - `failure taxonomy reconciliation report`.
 
-## Step 15. Mark per-machine runtime readiness
-### Для каждой машины вынести итоговый verdict
+## Step 7. Mark per-machine runtime readiness
+После валидации каждой машине нужно присвоить итоговый runtime readiness verdict.
+
+### Допустимые статусы
 - `ready`;
 - `partial`;
 - `blocked`.
+
+### Правила
+#### ready
+- response schema complete;
+- status semantics честные;
+- warmup behavior корректен;
+- payload usable downstream.
+
+#### partial
+- машина operationally работает;
+- но есть контролируемые ограничения, которые нельзя скрывать.
+
+#### blocked
+- есть contract mismatch;
+- broken schema;
+- unstable runtime;
+- некорректные status/error semantics;
+- или response нельзя использовать как downstream unit.
 
 ### Result of the step
 - `12-machine runtime readiness matrix`.
 
 ---
 
-# PHASE 3D — BEN_KIM PACKAGING LAYER VALIDATION
+# PHASE 3B — BEN_KIM SYMBOL PACKAGING LAYER
 
-## Goal of Phase 3D
-Подтвердить, что `Ben_Kim` — это не просто наблюдатель над runtime, а корректный packaging layer между 12 machine responses и downstream object storage.
+## Goal of Phase 3B
+Проверить, что `Ben_Kim` умеет работать не только как наблюдатель runtime, но и как packaging layer, который после пинга по symbol формирует 12 отдельных symbol-scoped objects.
 
-## Step 16. Build the first BTC package of 12 separate objects
+## Step 8. Freeze symbol-object contract
+Нужно зафиксировать, что считается одним итоговым объектом `Ben_Kim`.
+
+### Один объект =
+`1 symbol + 1 strategy + 1 timeframe + 1 machine response`
+
+### Минимально обязательные поля объекта
+- `symbol`;
+- `strategy`;
+- `timeframe`;
+- `machine_id`;
+- `agent_id`;
+- `status`;
+- `summary`;
+- `meta`;
+- `features`;
+- `request_id`;
+- `generated_at`.
+
+### Обязательные quality / traceability fields
+- `is_partial`;
+- `partial_reason`;
+- `coverage_ratio`;
+- `data_points`;
+- `build_version`;
+- `source_contract_version`;
+- `api_key_id`.
+
+### Комментарий
+Это уже не просто response sub-agent машины. Это единица хранения и оркестрации для следующего этапа.
+
+### Result of the step
+- `Ben_Kim symbol object contract`.
+
+## Step 9. Build the first BTC package of 12 objects
+После пинга на `BTCUSDC` `Ben_Kim` должен собрать ровно 12 отдельных объектов.
+
 ### Обязательный состав пакета
 1. `BTCUSDC + RSI_MACD + 1m`
 2. `BTCUSDC + RSI_MACD + 5m`
@@ -371,70 +254,79 @@
 12. `BTCUSDC + ELLIOTT + 60m`
 
 ### Критичное правило
-Это должны быть **именно 12 отдельных objects**, а не merged blob и не один свободный summary.
+Это должны быть именно 12 отдельных objects, а не один merged blob или один свободный summary.
 
 ### Result of the step
-- первый `BTC package` из 12 objects.
+- первый `BTC package` из 12 отдельных objects.
 
-## Step 17. Validate packaging fidelity
-### Нужно проверить
+## Step 10. Validate packaging fidelity
+Нужно проверить, что при упаковке machine response → symbol object ничего не искажается и не теряется.
+
+### Проверять
 - не теряется `machine_id`;
-- не теряются `strategy` и `timeframe`;
+- не теряется `strategy` и `timeframe`;
 - не теряется `status`;
 - не теряется `partial_reason`;
-- не ломается traceability;
-- `summary`, `features`, `errors`, `meta` не искажаются;
-- `error` packets не превращаются в usable objects без маркировки;
-- `object_id` и `batch_id` сохраняют identity discipline.
+- не теряется traceability;
+- `summary` и `features` не искажаются;
+- `error` packets не превращаются в usable objects без маркировки.
+
+### Комментарий
+Если runtime правильный, но packaging деформирует объект, downstream storage и orchestration будут строиться на испорченном контуре.
 
 ### Result of the step
 - `packaging fidelity report`.
 
-## Step 18. Freeze and validate object-level readiness rules
-### Допустимые object-level verdicts
+## Step 11. Freeze object-level readiness rules
+Нужно отдельно зафиксировать readiness не только для машины, но и для итогового symbol object.
+
+### Допустимые object-level статусы
 - `ready`;
 - `partial`;
 - `blocked`.
 
 ### Логика
-Даже при корректном machine response итоговый object может быть непригоден, если:
-- потеряна identity-связка;
-- утеряны quality flags;
-- сломан storage-facing envelope;
-- объект нельзя безопасно записать downstream.
+Даже если машина отдала response, итоговый object всё ещё может быть:
+- плохо упакован;
+- лишён traceability;
+- некорректно промаркирован;
+- непригоден для storage handoff.
 
 ### Result of the step
 - `12-object readiness matrix`.
 
-## Step 19. Freeze Ben_Kim ping-run contract
-### После одного пользовательского пинга `Ben_Kim` должен
+## Step 12. Define Ben_Kim ping-run behavior
+Нужно формально зафиксировать, как работает запуск после пользовательского пинга по symbol.
+
+### После пинга `Ben_Kim` должен
 1. определить целевой `symbol`;
-2. адресовать нужные 12 машин через registry;
+2. адресовать нужные 12 машин через frozen registry;
 3. получить 12 machine outputs;
-4. преобразовать их в symbol objects;
-5. проставить object-level readiness;
-6. подготовить batch к handoff в object storage.
+4. привести их к symbol-object contract;
+5. пометить object-level readiness;
+6. подготовить batch к передаче в storage layer.
 
 ### Отдельно определить
 - как выглядит один `ping-run`;
 - когда допустим partial batch;
 - когда run считается failed;
-- как маркируется incomplete run;
-- как логируются `request_id` и `batch_id`;
-- как обрабатывается retry того же symbol-run.
+- как маркируется incomplete 12-object run;
+- можно ли временно вернуть degraded batch без полной остановки контура.
 
 ### Result of the step
 - `Ben_Kim ping-run contract`.
 
 ---
 
-# PHASE 3E — STORAGE HANDOFF READINESS
+# PHASE 3C — STORAGE HANDOFF READINESS AND ACCEPTANCE
 
-## Goal of Phase 3E
-Довести outputs до состояния, в котором они уже готовы к отдельному object-storage domain без смешения с tick storage semantics.
+## Goal of Phase 3C
+Довести `Ben_Kim` outputs до состояния, где они уже готовы передаваться дальше как storage-ready units, даже если финальная production-инструкция для `Jack` будет уточняться отдельно.
 
-## Step 20. Freeze storage-ready envelope
-### Обязательные поля
+## Step 13. Freeze storage-ready envelope
+Нужно зафиксировать форму одного storage-ready объекта.
+
+### Обязательные поля envelope
 - `symbol`;
 - `strategy`;
 - `timeframe`;
@@ -452,67 +344,41 @@
 ### Ключевое правило
 `one machine response = one storage object`.
 
-### Result of the step
-- `storage-ready envelope`.
-
-## Step 21. Freeze object-storage write contract
-### Нужно зафиксировать
-- single-object write shape;
-- batch write shape на 12 objects;
-- idempotency rule;
-- duplicate handling policy;
-- overwrite vs append-only policy;
-- schema validation behavior;
-- обязательные audit fields;
-- допустимо ли хранить `partial` и `blocked` objects и как они маркируются.
+### Комментарий
+Это точка перехода от runtime semantics к storage discipline. Объект должен быть self-contained и downstream-readable.
 
 ### Result of the step
-- `object storage write contract`.
+- `storage-ready envelope` для `Ben_Kim -> Jack`.
 
-## Step 22. Freeze batch acceptance rules for 12-object handoff
+## Step 14. Define batch acceptance rules for 12-object handoff
+Нужно зафиксировать правила приёма полного пакета по symbol.
+
 ### Определить
-- когда batch считается complete;
+- когда 12-object batch считается complete;
 - можно ли передавать batch с `partial` objects;
 - можно ли передавать batch с `blocked` objects;
 - когда нужен fail-fast;
-- как маркируется неполный batch;
+- как маркировать неполный batch;
 - нужен ли общий `batch_status`.
+
+### Комментарий
+`Jack` не должен получить 9 объектов из 12 без явной маркировки, что пакет деградирован и почему именно.
 
 ### Result of the step
 - `batch handoff acceptance rules`.
 
-## Step 23. Validate separation of tick storage and object storage domains
-### Нужно подтвердить
-- object storage не становится source-of-truth для входных тиков;
-- tick storage не используется как storage для machine outputs;
-- деградация tick storage отражается в runtime/status/errors, а не маскируется packaging-слоем;
-- деградация object storage не меняет semantics input-read contract;
-- ownership boundaries между compute, tick storage и object storage остаются явными.
+## Step 15. Produce PHASE 3 report
+По завершении фазы должен быть подготовлен формальный отчёт.
 
-### Result of the step
-- `dual-storage separation validation report`.
-
----
-
-# PHASE 3F — FINAL ACCEPTANCE AND REPORTING
-
-## Step 24. Produce PHASE 3 report
-### В финальном отчёте должно быть
-- результаты `12-machine integration validation`;
-- contract completeness matrix;
-- status honesty report;
-- warmup behavior validation;
-- failure taxonomy reconciliation;
-- runtime readiness matrix;
-- первый `BTC package` из 12 objects;
-- packaging fidelity report;
-- object readiness matrix;
-- storage-ready envelope confirmation;
-- batch acceptance rules;
-- dual-storage separation confirmation;
+### В отчёте должно быть
+- результаты 12-machine integration validation;
+- reconciliation по failure taxonomy;
+- готовность packaging layer;
+- готовность первого `BTC package` из 12 объектов;
+- storage handoff readiness;
 - список blockers;
 - список known limitations;
-- итоговый verdict:
+- итоговое решение:
   - `PHASE 3 accepted`;
   - или `PHASE 3 partial`;
   - или `PHASE 3 blocked`.
@@ -525,19 +391,16 @@
 # DEFINITION OF DONE FOR PHASE 3
 
 `PHASE 3` считается завершённой только если одновременно выполнено всё ниже:
-- на одном и том же `BTCUSDC` baseline прогнаны все 12 машин;
+- на `BTCUSDC` прогнаны все 12 машин;
 - по каждой машине есть runtime readiness verdict;
+- сверены фактические emitted errors и failure taxonomy;
 - подтверждена честность `ready / partial / error`;
 - подтверждено соблюдение warmup policy;
-- сверены фактические emitted errors и agreed failure taxonomy;
-- `Ben_Kim` умеет собрать ровно 12 symbol-scoped objects по одному symbol;
-- сформирован первый `BTCUSDC` batch из 12 отдельных objects;
-- по каждому object есть object-level readiness verdict;
+- `Ben_Kim` умеет собирать 12 symbol-scoped objects по одному symbol;
+- сформирован первый `BTCUSDC` batch из 12 объектов;
+- по каждому объекту есть object-level readiness verdict;
 - зафиксирован storage-ready envelope;
-- зафиксирован object-storage write contract;
 - зафиксированы batch acceptance rules;
-- подтверждена separation between tick storage and object storage;
-- подтверждена end-to-end traceability на всём пути от API access до storage handoff;
 - выпущен `PHASE_3_REPORT.md`.
 
 ---
@@ -546,27 +409,23 @@
 
 Следующее считается blocker:
 - хотя бы одна машина не может быть стабильно вызвана через frozen registry;
-- response schema ломается или не трактуется downstream;
+- response schema ломается на runtime;
 - traceability fields отсутствуют или несогласованы;
 - status semantics не совпадают с фактическим качеством входа;
-- failure taxonomy настолько расходится с runtime, что orchestration не понимает retryability;
+- failure taxonomy расходится с реальным runtime так, что orchestration не может надёжно трактовать retryability;
 - `Ben_Kim` не может собрать ровно 12 отдельных objects по `BTCUSDC`;
-- packaging теряет identity, status или quality flags;
-- object envelope не позволяет безопасный downstream write;
-- runtime-машины обходят agreed API-read contour;
-- object write semantics не обеспечивают идемпотентность, auditability или separation от tick storage domain.
+- object-level packaging теряет identity, status или quality flags;
+- storage-ready envelope не позволяет downstream хранить объект как отдельную единицу.
 
 ---
 
 # FINAL COMMENT ON PHASE 3
 
-Оптимальная последовательность теперь такая:
-- сначала заморозить baseline и критерии приёмки;
-- затем подготовить всё, что можно без API-ключа;
-- затем вручную прогнать live validation на одном canonical symbol;
-- затем проверить упаковку `Ben_Kim` в 12 отдельных objects;
-- затем довести objects до storage-ready handoff.
+После фактически реализованной `PHASE 2` следующая фаза должна быть не про новую архитектуру, а про проверку её работоспособности в бою на одном символе и подготовку `Ben_Kim` к роли operational layer между machine runtime и storage.
 
-Это лучше старой версии плана по двум причинам:
-- не путает уже завершённую `PHASE 2` с текущей фазой;
-- честно разделяет offline-prep и manual API-validation, что особенно важно при отсутствии ключа у исполнителя.
+Правильная последовательность теперь такая:
+- сначала проверить, что 12-machine runtime реально работает как единый контур;
+- потом научить `Ben_Kim` упаковывать outputs в 12 symbol-scoped objects;
+- потом довести эти объекты до storage-ready handoff.
+
+Именно так `PHASE 3` превращает уже собранную contract-first систему в operationally usable pipeline.
