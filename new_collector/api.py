@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -13,6 +13,16 @@ from db import DB
 
 class TickAPIHandler(BaseHTTPRequestHandler):
     db: DB | None = None
+
+    @staticmethod
+    def _parse_utc_datetime(raw: str, *, allow_z_suffix: bool = False) -> datetime:
+        value = raw
+        if allow_z_suffix and value.endswith("Z"):
+            value = f"{value[:-1]}+00:00"
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            raise ValueError("datetime must include UTC offset")
+        return dt.astimezone(timezone.utc)
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -62,12 +72,14 @@ class TickAPIHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                dt_from = datetime.fromisoformat(range_from) if range_from else None
-                dt_to = datetime.fromisoformat(range_to) if range_to else None
-                cursor_event_time = datetime.fromisoformat(cursor_event_time_raw) if cursor_event_time_raw else None
-            except ValueError:
-                self.db.log_api_access(client["client_id"], client["nickname"], "/ticks", symbol, None, None, "bad_request_invalid_datetime", None, remote_addr)
-                self._send_json({"error": "invalid datetime format; use ISO-8601"}, status=HTTPStatus.BAD_REQUEST)
+                dt_from = self._parse_utc_datetime(range_from, allow_z_suffix=True) if range_from else None
+                dt_to = self._parse_utc_datetime(range_to, allow_z_suffix=True) if range_to else None
+                cursor_event_time = self._parse_utc_datetime(cursor_event_time_raw, allow_z_suffix=True) if cursor_event_time_raw else None
+            except ValueError as exc:
+                error_message = str(exc) or "invalid datetime format; use ISO-8601"
+                error_code = "bad_request_datetime_missing_offset" if error_message == "datetime must include UTC offset" else "bad_request_invalid_datetime"
+                self.db.log_api_access(client["client_id"], client["nickname"], "/ticks", symbol, None, None, error_code, None, remote_addr)
+                self._send_json({"error": error_message}, status=HTTPStatus.BAD_REQUEST)
                 return
 
             rows = self.db.fetch_ticks(
