@@ -41,6 +41,8 @@ class TickAPIHandler(BaseHTTPRequestHandler):
             range_from = (params.get("from") or [""])[0].strip()
             range_to = (params.get("to") or [""])[0].strip()
             limit_raw = (params.get("limit") or ["1000"])[0].strip() or "1000"
+            cursor_event_time_raw = (params.get("cursor_event_time") or [""])[0].strip()
+            cursor_trade_id = (params.get("cursor_trade_id") or [""])[0].strip() or None
 
             if not symbol:
                 self.db.log_api_access(client["client_id"], client["nickname"], "/ticks", None, None, None, "bad_request_missing_symbol", None, remote_addr)
@@ -54,21 +56,44 @@ class TickAPIHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "invalid limit"}, status=HTTPStatus.BAD_REQUEST)
                 return
 
+            if bool(cursor_event_time_raw) != bool(cursor_trade_id):
+                self.db.log_api_access(client["client_id"], client["nickname"], "/ticks", symbol, None, None, "bad_request_invalid_cursor", None, remote_addr)
+                self._send_json({"error": "cursor_event_time and cursor_trade_id must be provided together"}, status=HTTPStatus.BAD_REQUEST)
+                return
+
             try:
                 dt_from = datetime.fromisoformat(range_from) if range_from else None
                 dt_to = datetime.fromisoformat(range_to) if range_to else None
+                cursor_event_time = datetime.fromisoformat(cursor_event_time_raw) if cursor_event_time_raw else None
             except ValueError:
                 self.db.log_api_access(client["client_id"], client["nickname"], "/ticks", symbol, None, None, "bad_request_invalid_datetime", None, remote_addr)
                 self._send_json({"error": "invalid datetime format; use ISO-8601"}, status=HTTPStatus.BAD_REQUEST)
                 return
 
-            rows = self.db.fetch_ticks(symbol, dt_from, dt_to, limit=limit)
+            rows = self.db.fetch_ticks(
+                symbol,
+                dt_from,
+                dt_to,
+                limit=limit,
+                cursor_event_time_utc=cursor_event_time,
+                cursor_trade_id=cursor_trade_id,
+            )
+            next_page = None
+            if len(rows) == limit and rows:
+                last_row = rows[-1]
+                next_page = {
+                    "cursor_event_time": str(last_row["event_time_utc"]),
+                    "cursor_trade_id": last_row["trade_id"],
+                }
             self.db.log_api_access(client["client_id"], client["nickname"], "/ticks", symbol, dt_from, dt_to, "ok", len(rows), remote_addr)
             self._send_json({
                 "client_id": client["client_id"],
                 "nickname": client["nickname"],
                 "symbol": symbol,
                 "count": len(rows),
+                "server_order": ["event_time_utc DESC", "trade_id DESC"],
+                "canonical_client_order": ["event_time_utc ASC", "trade_id ASC"],
+                "next_page": next_page,
                 "rows": rows,
             })
             return

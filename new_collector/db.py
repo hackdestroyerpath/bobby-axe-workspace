@@ -91,7 +91,18 @@ class DB:
                 rows = cur.fetchall()
         return [(row[0], row[1]) for row in rows]
 
-    def fetch_ticks(self, symbol: str, range_from_utc: datetime | None, range_to_utc: datetime | None, limit: int = 1000) -> list[dict]:
+    def fetch_ticks(
+        self,
+        symbol: str,
+        range_from_utc: datetime | None,
+        range_to_utc: datetime | None,
+        limit: int = 1000,
+        cursor_event_time_utc: datetime | None = None,
+        cursor_trade_id: str | None = None,
+    ) -> list[dict]:
+        if (cursor_event_time_utc is None) != (cursor_trade_id is None):
+            raise ValueError("cursor_event_time_utc and cursor_trade_id must be provided together")
+
         where = ["symbol = %s"]
         params: list = [symbol]
         if range_from_utc is not None:
@@ -100,12 +111,15 @@ class DB:
         if range_to_utc is not None:
             where.append("event_time_utc <= %s")
             params.append(range_to_utc)
+        if cursor_event_time_utc is not None and cursor_trade_id is not None:
+            where.append("(event_time_utc, trade_id) < (%s, %s)")
+            params.extend([cursor_event_time_utc, cursor_trade_id])
         params.append(limit)
         sql = f"""
             SELECT source, symbol, trade_id, event_time_utc, price, quantity, side, ingested_at_utc
             FROM collector_v2.tick_trade
             WHERE {' AND '.join(where)}
-            ORDER BY event_time_utc DESC
+            ORDER BY event_time_utc DESC, trade_id DESC
             LIMIT %s
         """
         with self.connect() as conn:
