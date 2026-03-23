@@ -35,6 +35,7 @@ pip install -r requirements.txt
 - command journal is written to `logs/commands.jsonl`
 - best-effort command ack markers are appended to sent commands and tracked in output
 - recent command activity is shown for the selected session in GUI
+- risky commands trigger a warning/confirm step before send
 
 ## Import / export behavior
 - Export writes the current session set into `sessions.export.json`

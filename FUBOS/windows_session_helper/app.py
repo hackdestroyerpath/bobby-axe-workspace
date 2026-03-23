@@ -99,6 +99,19 @@ class SessionEditDialog(QDialog):
         )
 
 
+DANGEROUS_PATTERNS = {
+    "rm -rf": "recursive delete",
+    "del /f": "forced delete",
+    "format ": "disk format",
+    "shutdown ": "shutdown or reboot",
+    "reboot": "reboot",
+    "mkfs": "filesystem creation",
+    "diskpart": "disk partitioning",
+    "reg delete": "registry delete",
+    "sc delete": "service delete",
+}
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -221,6 +234,44 @@ class MainWindow(QMainWindow):
     def clear_log(self) -> None:
         self.info_box.clear()
         self.append_log("log cleared")
+
+    def inspect_command_risk(self, command: str) -> list[str]:
+        lowered = command.lower().strip()
+        risks: list[str] = []
+        if not lowered:
+            risks.append("empty command")
+            return risks
+        for pattern, reason in DANGEROUS_PATTERNS.items():
+            if pattern in lowered:
+                risks.append(reason)
+        if any(token in command for token in ["&&", "||", "|", ";"]):
+            risks.append("multi-step shell chain")
+        if command.count("\n") >= 2:
+            risks.append("multi-line command block")
+        return risks
+
+    def confirm_command_send(self, session: SessionProfile, command: str) -> bool:
+        risks = self.inspect_command_risk(command)
+        if not risks:
+            return True
+        risk_text = "\n- ".join([""] + risks)
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setWindowTitle("Confirm risky command")
+        msg.setText(f"Command for '{session.name}' looks risky.")
+        msg.setInformativeText(f"Detected:{risk_text}\n\nCommand:\n{command}\n\nSend anyway?")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setDefaultButton(QMessageBox.No)
+        decision = msg.exec() == QMessageBox.Yes
+        self.runtime.record_action(
+            "send_guardrail",
+            session=session.name,
+            result="override" if decision else "blocked",
+            extra={"command": command, "risks": risks},
+        )
+        if not decision:
+            self.append_log(f"[warn] blocked risky command for '{session.name}': {', '.join(risks)}")
+        return decision
 
     def get_status_color(self, session: SessionProfile) -> QColor:
         if session.status == STATUS_ACTIVE:
@@ -443,6 +494,8 @@ class MainWindow(QMainWindow):
         command = self.command_input.toPlainText().strip()
         if not command:
             QMessageBox.information(self, "No command", "Type a command first.")
+            return
+        if not self.confirm_command_send(s, command):
             return
         ok, error, command_id = self.runtime.send_command(s, command)
         self.persist()
