@@ -24,6 +24,7 @@ pip install -r requirements.txt
 - stdout/stderr are captured into the operator log when available
 - structured action log is written to `logs/actions.jsonl`
 - command journal is written to `logs/commands.jsonl`
+- best-effort command ack markers are appended to sent commands and tracked in output
 
 ## Status model
 
@@ -46,6 +47,8 @@ pip install -r requirements.txt
 - `imported`
 - `inactive`
 - `command_sent`
+- `accepted`
+- `acked`
 
 ## Important limitation
 Command dispatch is still designed for helper-launched sessions.

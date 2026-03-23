@@ -9,6 +9,7 @@ from typing import Callable
 from uuid import uuid4
 
 from models import (
+    STATE_ACKED,
     STATE_AUTO_START_FAILED,
     STATE_ACCEPTED,
     STATE_COMMAND_SENT,
@@ -32,6 +33,7 @@ class SessionRuntimeManager:
         self.command_log_path = log_dir / "commands.jsonl"
         self.process_handles: dict[str, subprocess.Popen] = {}
         self.dead_logged: set[str] = set()
+        self.pending_acks: dict[str, dict[str, str]] = {}
 
     def record_action(self, action: str, session: str | None = None, result: str = "ok", error: str = "", extra: dict | None = None) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -74,7 +76,18 @@ class SessionRuntimeManager:
             session = next((item for item in sessions if item.name == session_name), None)
             if session is not None:
                 session.last_seen_ts = time.time()
-                if session.status == STATUS_ACTIVE and session.state_hint == STATE_COMMAND_SENT:
+                ack_map = self.pending_acks.get(session_name, {})
+                matched_ack = None
+                for command_id, marker in list(ack_map.items()):
+                    if marker in line:
+                        matched_ack = command_id
+                        del ack_map[command_id]
+                        break
+                if matched_ack is not None:
+                    session.state_hint = STATE_ACKED
+                    self.record_command_event(session_name, matched_ack, "", "acked")
+                    self.record_action("command_ack", session=session_name, result="ok", extra={"command_id": matched_ack})
+                elif session.status == STATUS_ACTIVE and session.state_hint == STATE_COMMAND_SENT:
                     session.state_hint = STATE_FRESH
             self.log_callback(f"[{session_name}:{stream_name}] {line}")
         try:
@@ -156,6 +169,7 @@ class SessionRuntimeManager:
 
     def send_command(self, session: SessionProfile, command: str) -> tuple[bool, str | None, str | None]:
         command_id = str(uuid4())
+        marker = f"__BOSSSHELPER_ACK_{command_id}__"
         session.state_hint = STATE_ACCEPTED
         self.record_command_event(session.name, command_id, command, "accepted")
         proc = self.get_live_process(session)
@@ -164,12 +178,14 @@ class SessionRuntimeManager:
             self.record_command_event(session.name, command_id, command, "failed", error="session not managed")
             return False, "session not managed", command_id
         try:
-            proc.stdin.write(command + "\n")
+            ack_command = f"{command}\necho {marker}"
+            proc.stdin.write(ack_command + "\n")
             proc.stdin.flush()
+            self.pending_acks.setdefault(session.name, {})[command_id] = marker
             session.last_seen_ts = time.time()
             session.state_hint = STATE_COMMAND_SENT
             session.last_error = ""
-            self.record_action("send", session=session.name, result="ok", extra={"command": command, "command_id": command_id})
+            self.record_action("send", session=session.name, result="ok", extra={"command": command, "command_id": command_id, "ack_marker": marker})
             self.record_command_event(session.name, command_id, command, "written")
             return True, None, command_id
         except Exception as exc:

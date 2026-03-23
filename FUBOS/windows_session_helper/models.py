@@ -21,6 +21,7 @@ STATE_INACTIVE = "inactive"
 STATE_COMMAND_SENT = "command_sent"
 STATE_QUEUED = "queued"
 STATE_ACCEPTED = "accepted"
+STATE_ACKED = "acked"
 
 
 @dataclass
