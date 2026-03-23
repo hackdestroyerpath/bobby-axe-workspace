@@ -18,6 +18,7 @@
 - `source` — источник данных.
 - `requested_at` — когда запросили.
 - `as_of` — на какой момент рассчитан ответ.
+- `response_contract_version` — версия общего response contract, по которому собран этот packet.
 - `status` — итоговое состояние ответа: `ready`, `partial`, `error`.
 - `input_window` — диапазон входных данных.
 - `features` — рассчитанные признаки стратегии.
@@ -30,6 +31,7 @@
 - `is_partial` — булев флаг деградированного, но всё ещё полезного ответа.
 - `partial_reason` — короткая причина partial-режима. Обязательна, если `meta.is_partial = true` или `status = partial`.
 - `coverage_ratio` — доля фактически покрытого входного окна в диапазоне `0..1`.
+- `response_contract_version` живёт на верхнем уровне ответа и должен совпадать с ожидаемой версией из request.
 - `source_contract_version` — версия входного source/tick contract, по которому реально работала машина.
 - `build_version` — версия сборки / кода машины.
 - `api_key_id` — технический id ключа/пула, если это нужно для трассировки доступа.
@@ -73,6 +75,7 @@
   "source": "Data_collector",
   "requested_at": "2026-03-23T10:15:00Z",
   "as_of": "2026-03-23T10:15:02Z",
+  "response_contract_version": "v1",
   "status": "partial",
   "input_window": {
     "from": "2026-03-23T06:00:00Z",

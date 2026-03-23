@@ -144,6 +144,7 @@ BEN_KIM_ORCHESTRATION_EXPECTATIONS = {
     "retry_policy": "Retry only failures marked retryable=true; do not retry insufficient warmup or empty_window failures.",
     "aggregation": "Aggregate same-strategy 1m/5m/60m outputs only when response_contract_version matches and statuses are ready/partial.",
     "degraded_handling": "Discard or heavily downweight low-confidence Elliott packets and any packet with partial_reason=empty_window.",
+    "traceability": "Every response must carry response_contract_version at the top level and source_contract_version/build_version/machine_id/api_key_id in traceability fields.",
     "timeframe_alignment": "Read 60m as context anchor, 5m as intraday confirmation, 1m as tactical timing layer.",
 }
 
