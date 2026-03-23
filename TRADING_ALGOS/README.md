@@ -21,11 +21,19 @@
 ## Общее правило
 Единый source-of-truth для входных тиков зафиксирован в `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`. Все 12 машин должны ссылаться на этот контракт и использовать его без локального пересказа.
 
-Дальше каждый алгоритм сам:
-- читает вход только через общий preprocessing-слой `TRADING_ALGOS/common/tick_normalizer.py`
-- агрегирует `normalized ticks` в нужный ТФ
-- считает свои признаки
-- по запросу отдаёт свой strategy-specific packet
+Дальше каждая машина работает по единому pipeline:
+- машина получает `normalized ticks` из общего tick normalizer `TRADING_ALGOS/common/tick_normalizer.py`
+- машина получает `candles` и `microstructure` из shared tick-to-features engine `TRADING_ALGOS/common/tick_to_features_engine.py`
+- стратегия считает только свои `strategy-specific indicators` поверх общего feature layer
+- по запросу машина отдаёт свой strategy-specific packet в едином request/response contract
+
+## Общие ссылки
+- тик-контракт: `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`
+- единая спецификация чтения тиков: `TRADING_ALGOS/COMMON_TICK_READ_SPEC.md`
+- shared normalization module: `TRADING_ALGOS/common/tick_normalizer.py`
+- shared feature engine: `TRADING_ALGOS/common/tick_to_features_engine.py`
+- единый request schema: `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.md`
+- единый response schema: `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.md`
 
 ## Структура папки
 - `TICK_SOURCE_CONTRACT.md`

@@ -5,15 +5,19 @@
 
 ## Вход
 - входной тик-контракт: `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`
-- общий preprocessing-слой: `TRADING_ALGOS/common/tick_normalizer.py`
-- общий candle + microstructure engine: `TRADING_ALGOS/common/tick_to_features_engine.py`
+- единая спецификация чтения тиков: `TRADING_ALGOS/COMMON_TICK_READ_SPEC.md`
+- shared normalization module: `TRADING_ALGOS/common/tick_normalizer.py`
+- shared feature engine: `TRADING_ALGOS/common/tick_to_features_engine.py`
+- единый request schema: `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.md`
+- единый response schema: `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.md`
 - выбранный диапазон истории
 - источник: см. единый контракт, без локального пересказа
-- downstream-вход стратегии: только `normalized ticks`, а не raw tick stream
-- стратегия обязана брать aligned candles только из shared engine и не описывать/не реализовывать собственную агрегацию
+- машина получает `normalized ticks` из общего tick normalizer
+- машина получает `candles` / `microstructure` из shared tick-to-features engine
+- стратегия считает только свои `strategy-specific indicators` поверх общего feature layer
 
 ## Shared engine dependency
-Использовать `TRADING_ALGOS/common/tick_to_features_engine.py` для свечей `5m` и общих полей `open`, `high`, `low`, `close`, `volume`, `trade_count`, `buy_volume`, `sell_volume`, `delta`, `imbalance`, `trade_speed`, `relative_volume_baseline`. Локальная агрегация запрещена.
+Использовать `TRADING_ALGOS/common/tick_to_features_engine.py` для свечей `5m` и общих полей `open`, `high`, `low`, `close`, `volume`, `trade_count`, `buy_volume`, `sell_volume`, `delta`, `imbalance`, `trade_speed`, `relative_volume_baseline`. Локальная агрегация запрещена: свечи и общие microstructure-признаки приходят только из shared feature engine, а стратегия добавляет поверх них только свои strategy-specific indicators.
 
 ## Что считать
 По свечам `5m` считать:
