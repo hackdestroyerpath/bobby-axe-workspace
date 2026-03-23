@@ -2,6 +2,8 @@
 
 Этот документ фиксирует cross-cutting артефакты Phase 2, чтобы 12 машин поднимались поверх Phase 1 без operational drift.
 
+Closing artifact по итогам всей фазы вынесен в `TRADING_ALGOS/PHASE_2_REPORT.md`.
+
 ## 1. Machine registry
 
 Единый frozen registry живёт в `TRADING_ALGOS/machine_registry.py`.

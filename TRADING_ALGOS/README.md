@@ -56,4 +56,5 @@
 - `strategy_cores.py` — shared family-core реализации для `RSI_MACD`, `LEVELS_FIBO_HV`, `VOLUME`, `ELLIOTT`
 - `machines.py` — 12 runtime wrappers поверх общего контракта и family-core
 - `PHASE_2_BLUEPRINT.md` — cross-cutting operational decisions для всей фазы
+- `PHASE_2_REPORT.md` — closing-report по всей Phase 2 и сверка с Definition of Done
 - `BEN_KIM_ORCHESTRATION_CONTRACT.md` — machine-to-orchestrator readiness contract для следующей фазы
