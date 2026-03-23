@@ -1,6 +1,15 @@
 """Trading algorithms shared modules and Phase 2 runtime assets."""
 
 from .machine_registry import MACHINE_REGISTRY, MachineSpec, WarmupSpec, get_machine_spec
+from .ben_kim_packaging import (
+    BATCH_ACCEPTANCE_RULES,
+    BenKimBatch,
+    BenKimSymbolObject,
+    assemble_symbol_batch,
+    evaluate_batch_acceptance,
+    evaluate_object_readiness,
+    project_machine_response_to_symbol_object,
+)
 from .machines import (
     MachineExecutor,
     execute_elliott_machine,
@@ -24,8 +33,11 @@ from .strategy_cores import (
 )
 
 __all__ = [
+    "BATCH_ACCEPTANCE_RULES",
     "BEN_KIM_ORCHESTRATION_EXPECTATIONS",
     "FAILURE_MODE_MATRIX",
+    "BenKimBatch",
+    "BenKimSymbolObject",
     "MACHINE_REGISTRY",
     "MachineExecutor",
     "MachineSpec",
@@ -34,6 +46,9 @@ __all__ = [
     "STATUS_READY",
     "StrategyComputation",
     "WarmupSpec",
+    "assemble_symbol_batch",
+    "evaluate_batch_acceptance",
+    "evaluate_object_readiness",
     "compute_elliott",
     "compute_levels_fibo_hv",
     "compute_rsi_macd",
@@ -43,4 +58,5 @@ __all__ = [
     "execute_rsi_macd_machine",
     "execute_volume_machine",
     "get_machine_spec",
+    "project_machine_response_to_symbol_object",
 ]
