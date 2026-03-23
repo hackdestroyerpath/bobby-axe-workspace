@@ -81,7 +81,7 @@
         "include_incomplete_candle": {
           "type": "boolean",
           "default": false,
-          "description": "Whether the last incomplete candle may be included in features."
+          "description": "Whether the last incomplete candle may be included in features. When false, the shared candle engine drops the final bucket if input_window.to falls inside that bucket; when true, it keeps the bucket and marks it incomplete."
         },
         "strict_mode": {
           "type": "boolean",

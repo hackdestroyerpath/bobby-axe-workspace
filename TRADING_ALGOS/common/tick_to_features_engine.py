@@ -19,7 +19,9 @@ TIMEFRAME_TO_DELTA: Mapping[str, timedelta] = {
 }
 RELATIVE_VOLUME_BASELINE_BUCKETS = 20
 EMPTY_BUCKET_POLICY = "keep_bucket_emit_zero_flow_forward_fill_ohlc_when_seeded"
-INCOMPLETE_LAST_CANDLE_POLICY = "mark_last_bucket_incomplete_when_window_to_is_inside_bucket"
+INCOMPLETE_LAST_CANDLE_POLICY_INCLUDE = "include_last_bucket_and_mark_incomplete_when_window_to_is_inside_bucket"
+INCOMPLETE_LAST_CANDLE_POLICY_EXCLUDE = "drop_last_bucket_when_window_to_is_inside_bucket_and_include_incomplete_candle_is_false"
+INCOMPLETE_LAST_CANDLE_POLICY = INCOMPLETE_LAST_CANDLE_POLICY_INCLUDE
 BUCKET_ALIGNMENT_POLICY = "utc_epoch_floor"
 
 _ZERO = Decimal("0")
@@ -70,6 +72,7 @@ def build_tick_feature_candles(
     window_to: datetime,
     timeframes: Iterable[str] = SUPPORTED_TIMEFRAMES,
     relative_volume_baseline_buckets: int = RELATIVE_VOLUME_BASELINE_BUCKETS,
+    include_incomplete_candle: bool = False,
 ) -> TickToFeaturesResult:
     """Build aligned OHLCV + microstructure candles from normalized ticks.
 
@@ -78,8 +81,9 @@ def build_tick_feature_candles(
     - warmup: relative volume baseline requires 20 completed buckets by default
     - empty buckets: keep them in the series, zero flow fields, OHLC forward-filled
       from the most recent known close when available, else OHLC remains None
-    - incomplete last candle: include it and mark `is_incomplete=True` when
-      `window_to` falls inside the final aligned bucket rather than on its boundary
+    - incomplete last candle: include it only when `include_incomplete_candle=True`,
+      and mark `is_incomplete=True` when `window_to` falls inside the final aligned
+      bucket rather than on its boundary
     """
 
     if relative_volume_baseline_buckets <= 0:
@@ -104,6 +108,7 @@ def build_tick_feature_candles(
             window_from=window_from_utc,
             window_to=window_to_utc,
             relative_volume_baseline_buckets=relative_volume_baseline_buckets,
+            include_incomplete_candle=include_incomplete_candle,
         )
         for timeframe in requested_timeframes
     }
@@ -115,7 +120,11 @@ def build_tick_feature_candles(
         metadata=CandleEngineMetadata(
             bucket_alignment_policy=BUCKET_ALIGNMENT_POLICY,
             empty_bucket_policy=EMPTY_BUCKET_POLICY,
-            incomplete_last_candle_policy=INCOMPLETE_LAST_CANDLE_POLICY,
+            incomplete_last_candle_policy=(
+                INCOMPLETE_LAST_CANDLE_POLICY_INCLUDE
+                if include_incomplete_candle
+                else INCOMPLETE_LAST_CANDLE_POLICY_EXCLUDE
+            ),
             relative_volume_baseline_buckets=relative_volume_baseline_buckets,
             minimum_warmup_window_by_timeframe={
                 timeframe: minimum_warmup_window(timeframe, relative_volume_baseline_buckets)
@@ -145,6 +154,7 @@ def _build_timeframe_candles(
     window_from: datetime,
     window_to: datetime,
     relative_volume_baseline_buckets: int,
+    include_incomplete_candle: bool,
 ) -> tuple[CandleFeatureRow, ...]:
     bucket_size = TIMEFRAME_TO_DELTA[timeframe]
     first_bucket_start = floor_bucket_start(window_from, timeframe)
@@ -187,6 +197,8 @@ def _build_timeframe_candles(
 
     for bucket_start in _iter_bucket_starts(first_bucket_start, range_end_exclusive, bucket_size):
         bucket_end = bucket_start + bucket_size
+        if not include_incomplete_candle and bucket_end > window_to:
+            break
         bucket_ticks: list[NormalizedTick] = []
 
         while tick_cursor < len(ticks) and ticks[tick_cursor].event_time_utc < bucket_start:

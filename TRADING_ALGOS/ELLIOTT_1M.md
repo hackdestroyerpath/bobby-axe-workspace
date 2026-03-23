@@ -9,6 +9,7 @@
 - shared normalization module: `TRADING_ALGOS/common/tick_normalizer.py`
 - shared feature engine: `TRADING_ALGOS/common/tick_to_features_engine.py`
 - единый request schema: `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.md`
+- `options.include_incomplete_candle=false` по умолчанию исключает последнюю незавершённую свечу; при `true` shared candle engine оставляет последний bucket и помечает его `is_incomplete=true`
 - единый response schema: `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.md`
 - выбранный диапазон истории
 - источник: см. единый контракт, без локального пересказа

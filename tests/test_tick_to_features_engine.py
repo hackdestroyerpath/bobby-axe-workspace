@@ -8,7 +8,8 @@ from TRADING_ALGOS.common.tick_normalizer import NormalizedTick
 from TRADING_ALGOS.common.tick_to_features_engine import (
     BUCKET_ALIGNMENT_POLICY,
     EMPTY_BUCKET_POLICY,
-    INCOMPLETE_LAST_CANDLE_POLICY,
+    INCOMPLETE_LAST_CANDLE_POLICY_EXCLUDE,
+    INCOMPLETE_LAST_CANDLE_POLICY_INCLUDE,
     RELATIVE_VOLUME_BASELINE_BUCKETS,
     build_tick_feature_candles,
     floor_bucket_start,
@@ -47,6 +48,7 @@ class TickToFeaturesEngineTests(unittest.TestCase):
             window_from=datetime(2026, 3, 23, 0, 20, 5, tzinfo=timezone.utc),
             window_to=datetime(2026, 3, 23, 0, 21, 20, tzinfo=timezone.utc),
             timeframes=("1m",),
+            include_incomplete_candle=True,
         )
 
         candles = result.candles_by_timeframe["1m"]
@@ -76,11 +78,39 @@ class TickToFeaturesEngineTests(unittest.TestCase):
 
         self.assertEqual(result.metadata.bucket_alignment_policy, BUCKET_ALIGNMENT_POLICY)
         self.assertEqual(result.metadata.empty_bucket_policy, EMPTY_BUCKET_POLICY)
-        self.assertEqual(result.metadata.incomplete_last_candle_policy, INCOMPLETE_LAST_CANDLE_POLICY)
+        self.assertEqual(result.metadata.incomplete_last_candle_policy, INCOMPLETE_LAST_CANDLE_POLICY_INCLUDE)
         self.assertEqual(
             result.metadata.minimum_warmup_window_by_timeframe["1m"],
             timedelta(minutes=RELATIVE_VOLUME_BASELINE_BUCKETS),
         )
+
+    def test_engine_excludes_incomplete_last_bucket_by_default(self) -> None:
+        ticks = [
+            self._tick("seed", "2026-03-23T00:00:10Z", "100", "1", side="buy"),
+            self._tick("partial", "2026-03-23T00:01:10Z", "101", "1", side="buy"),
+        ]
+
+        excluded = build_tick_feature_candles(
+            ticks,
+            window_from=datetime(2026, 3, 23, 0, 0, 0, tzinfo=timezone.utc),
+            window_to=datetime(2026, 3, 23, 0, 1, 30, tzinfo=timezone.utc),
+            timeframes=("1m",),
+        )
+        included = build_tick_feature_candles(
+            ticks,
+            window_from=datetime(2026, 3, 23, 0, 0, 0, tzinfo=timezone.utc),
+            window_to=datetime(2026, 3, 23, 0, 1, 30, tzinfo=timezone.utc),
+            timeframes=("1m",),
+            include_incomplete_candle=True,
+        )
+
+        self.assertEqual(len(excluded.candles_by_timeframe["1m"]), 1)
+        self.assertFalse(excluded.candles_by_timeframe["1m"][-1].is_incomplete)
+        self.assertEqual(excluded.metadata.incomplete_last_candle_policy, INCOMPLETE_LAST_CANDLE_POLICY_EXCLUDE)
+
+        self.assertEqual(len(included.candles_by_timeframe["1m"]), 2)
+        self.assertTrue(included.candles_by_timeframe["1m"][-1].is_incomplete)
+        self.assertEqual(included.metadata.incomplete_last_candle_policy, INCOMPLETE_LAST_CANDLE_POLICY_INCLUDE)
 
     def test_engine_keeps_empty_bucket_and_forward_fills_prices(self) -> None:
         result = build_tick_feature_candles(
