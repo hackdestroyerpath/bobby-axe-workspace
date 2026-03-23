@@ -6,13 +6,14 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "request_id",
     "agent_id",
     "strategy",
     "timeframe",
     "symbol",
     "source",
     "requested_at",
-    "as_of",
+    "generated_at",
     "response_contract_version",
     "status",
     "input_window",
@@ -22,6 +23,10 @@
     "errors"
   ],
   "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
     "agent_id": {
       "type": "string",
       "minLength": 1
@@ -55,7 +60,7 @@
       "type": "string",
       "format": "date-time"
     },
-    "as_of": {
+    "generated_at": {
       "type": "string",
       "format": "date-time"
     },
