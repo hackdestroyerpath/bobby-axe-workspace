@@ -206,7 +206,9 @@
       "required": [
         "code",
         "message",
-        "severity"
+        "severity",
+        "scope",
+        "retryable"
       ],
       "properties": {
         "code": {
@@ -228,7 +230,9 @@
           "type": "string",
           "enum": [
             "input",
-            "compute",
+            "read",
+            "normalization",
+            "features",
             "output",
             "transport"
           ]
