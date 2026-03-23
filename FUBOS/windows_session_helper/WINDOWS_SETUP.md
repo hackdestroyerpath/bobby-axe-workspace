@@ -36,6 +36,12 @@ The executable will appear in the same folder as `build_exe.bat`:
 Temporary build artifacts will still use:
 - `build/`
 
+If build fails:
+- the console now stays open
+- the last log lines are printed automatically
+- full log is written to:
+  - `build_exe.log`
+
 ## Notes
 - first launch creates `sessions.json`
 - logs are written to `logs/actions.jsonl` and `logs/commands.jsonl`
