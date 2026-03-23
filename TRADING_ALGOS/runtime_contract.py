@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Mapping
 
 from .common.tick_normalizer import (
@@ -145,12 +148,36 @@ FAILURE_MODE_MATRIX: Mapping[str, tuple[RuntimeErrorInfo, ...]] = {
         RuntimeErrorInfo("PAGINATION_DRIFT", "Tick pagination did not produce a complete read.", "warning", ERROR_SCOPE_READ, True),
         RuntimeErrorInfo("NORMALIZATION_FAILED", "Shared tick normalizer failed.", "error", ERROR_SCOPE_NORMALIZATION, True),
         RuntimeErrorInfo("INSUFFICIENT_WARMUP", "Not enough candles to compute strategy safely.", "warning", ERROR_SCOPE_FEATURES, False),
-        RuntimeErrorInfo("FEATURE_ENGINE_FAILED", "Shared tick-to-features engine failed.", "error", ERROR_SCOPE_FEATURES, True),
+        RuntimeErrorInfo("FEATURE_ENGINE_FAILED", "Shared tick-to-features engine or strategy compute failed.", "error", ERROR_SCOPE_FEATURES, True),
         RuntimeErrorInfo("OUTPUT_SCHEMA_FAILED", "Response did not satisfy the shared contract.", "error", ERROR_SCOPE_OUTPUT, False),
         RuntimeErrorInfo("TRANSPORT_FAILED", "Transport layer failed to deliver the response.", "error", ERROR_SCOPE_TRANSPORT, True),
     )
     for machine_id in MACHINE_REGISTRY
 }
+
+FAILURE_MODE_LOOKUP: Mapping[str, Mapping[str, RuntimeErrorInfo]] = {
+    machine_id: {error.code: error for error in errors}
+    for machine_id, errors in FAILURE_MODE_MATRIX.items()
+}
+
+
+@lru_cache(maxsize=1)
+def load_response_schema() -> dict[str, Any]:
+    schema_path = Path(__file__).with_name("SUBAGENT_RESPONSE_FORMAT.json")
+    return json.loads(schema_path.read_text())
+
+
+def build_failure_error(machine_id: str, code: str, *, message: str | None = None) -> RuntimeErrorInfo:
+    template = FAILURE_MODE_LOOKUP[machine_id][code]
+    if message is None:
+        return template
+    return RuntimeErrorInfo(code=template.code, message=message, severity=template.severity, scope=template.scope, retryable=template.retryable)
+
+
+def validate_response_payload(payload: Mapping[str, Any]) -> list[str]:
+    schema = load_response_schema()
+    return _validate_schema_node(payload, schema, schema, path="$")
+
 
 
 BEN_KIM_ORCHESTRATION_EXPECTATIONS = {
@@ -275,3 +302,108 @@ def now_utc_iso() -> str:
 
 def recommended_window_by_machine() -> Mapping[str, timedelta]:
     return {machine_id: spec.warmup.recommended_window for machine_id, spec in MACHINE_REGISTRY.items()}
+
+
+def _validate_schema_node(value: Any, schema: Mapping[str, Any], root_schema: Mapping[str, Any], *, path: str) -> list[str]:
+    errors: list[str] = []
+
+    if "$ref" in schema:
+        ref = str(schema["$ref"])
+        resolved = _resolve_ref(root_schema, ref)
+        return _validate_schema_node(value, resolved, root_schema, path=path)
+
+    schema_type = schema.get("type")
+    allowed_types = schema_type if isinstance(schema_type, list) else ([schema_type] if schema_type else [])
+    if allowed_types and not _matches_any_type(value, allowed_types):
+        expected = "/".join(str(item) for item in allowed_types)
+        return [f"{path}: expected type {expected}"]
+
+    if value is None:
+        return errors
+
+    if "const" in schema and value != schema["const"]:
+        errors.append(f"{path}: value {value!r} does not match const {schema['const']!r}")
+    if "enum" in schema and value not in schema["enum"]:
+        errors.append(f"{path}: value {value!r} is not in enum {schema['enum']!r}")
+
+    if isinstance(value, str):
+        min_length = schema.get("minLength")
+        if isinstance(min_length, int) and len(value) < min_length:
+            errors.append(f"{path}: string is shorter than minLength={min_length}")
+        if schema.get("format") == "date-time":
+            try:
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                errors.append(f"{path}: invalid date-time format")
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        if minimum is not None and value < minimum:
+            errors.append(f"{path}: value {value} is below minimum={minimum}")
+        if maximum is not None and value > maximum:
+            errors.append(f"{path}: value {value} is above maximum={maximum}")
+
+    if isinstance(value, Mapping):
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        for field in required:
+            if field not in value:
+                errors.append(f"{path}: missing required property {field!r}")
+        if schema.get("additionalProperties") is False:
+            extra = set(value) - set(properties)
+            for field in sorted(extra):
+                errors.append(f"{path}: unexpected property {field!r}")
+        for field, field_value in value.items():
+            child_schema = properties.get(field)
+            if child_schema is None:
+                if isinstance(schema.get("additionalProperties"), Mapping):
+                    child_schema = schema["additionalProperties"]
+                else:
+                    continue
+            errors.extend(_validate_schema_node(field_value, child_schema, root_schema, path=f"{path}.{field}"))
+
+    if isinstance(value, list):
+        item_schema = schema.get("items")
+        if isinstance(item_schema, Mapping):
+            for index, item in enumerate(value):
+                errors.extend(_validate_schema_node(item, item_schema, root_schema, path=f"{path}[{index}]"))
+        min_items = schema.get("minItems")
+        if isinstance(min_items, int) and len(value) < min_items:
+            errors.append(f"{path}: array has fewer than minItems={min_items}")
+
+    for branch in schema.get("allOf", []):
+        condition = branch.get("if")
+        consequence = branch.get("then")
+        if isinstance(condition, Mapping) and isinstance(consequence, Mapping):
+            if not _validate_schema_node(value, condition, root_schema, path=path):
+                errors.extend(_validate_schema_node(value, consequence, root_schema, path=path))
+
+    return errors
+
+
+def _matches_any_type(value: Any, allowed_types: list[Any]) -> bool:
+    return any(_matches_type(value, allowed_type) for allowed_type in allowed_types)
+
+
+def _matches_type(value: Any, allowed_type: Any) -> bool:
+    return {
+        "object": lambda candidate: isinstance(candidate, Mapping),
+        "array": lambda candidate: isinstance(candidate, list),
+        "string": lambda candidate: isinstance(candidate, str),
+        "integer": lambda candidate: isinstance(candidate, int) and not isinstance(candidate, bool),
+        "number": lambda candidate: isinstance(candidate, (int, float)) and not isinstance(candidate, bool),
+        "boolean": lambda candidate: isinstance(candidate, bool),
+        "null": lambda candidate: candidate is None,
+    }.get(allowed_type, lambda candidate: True)(value)
+
+
+def _resolve_ref(root_schema: Mapping[str, Any], ref: str) -> Mapping[str, Any]:
+    if not ref.startswith("#/"):
+        raise ValueError(f"Unsupported schema ref: {ref}")
+    node: Any = root_schema
+    for part in ref[2:].split("/"):
+        node = node[part]
+    if not isinstance(node, Mapping):
+        raise TypeError(f"Schema ref {ref} did not resolve to a mapping")
+    return node

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import unittest
+from unittest.mock import patch
 
 from TRADING_ALGOS.machine_registry import MACHINE_REGISTRY, get_machine_spec
 from TRADING_ALGOS.machines import execute_rsi_macd_machine, execute_volume_machine
@@ -62,6 +63,45 @@ class Phase2RuntimeTests(unittest.TestCase):
     def test_failure_mode_matrix_is_defined_for_every_machine(self) -> None:
         self.assertEqual(set(FAILURE_MODE_MATRIX), set(MACHINE_REGISTRY))
         self.assertTrue(any(mode.code == "INSUFFICIENT_WARMUP" for mode in FAILURE_MODE_MATRIX["rsi_macd_1m"]))
+
+    def test_normalization_failure_returns_error_response(self) -> None:
+        request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
+        with patch("TRADING_ALGOS.machines.normalize_ticks", side_effect=RuntimeError("bad ticks")):
+            response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+
+        self.assertEqual(response["status"], STATUS_ERROR)
+        self.assertTrue(any(error["code"] == "NORMALIZATION_FAILED" for error in response["errors"]))
+
+    def test_feature_engine_failure_returns_error_response(self) -> None:
+        request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
+        with patch("TRADING_ALGOS.machines.build_tick_feature_candles", side_effect=RuntimeError("bad candles")):
+            response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+
+        self.assertEqual(response["status"], STATUS_ERROR)
+        self.assertTrue(any(error["code"] == "FEATURE_ENGINE_FAILED" for error in response["errors"]))
+
+    def test_strategy_compute_failure_returns_error_response(self) -> None:
+        request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
+        with patch("TRADING_ALGOS.machines.compute_rsi_macd", side_effect=RuntimeError("bad compute")):
+            response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+
+        self.assertEqual(response["status"], STATUS_ERROR)
+        self.assertTrue(any(error["code"] == "FEATURE_ENGINE_FAILED" for error in response["errors"]))
+
+    def test_output_schema_failure_returns_fallback_error_response(self) -> None:
+        request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
+        invalid_summary = {
+            "state": "not-a-valid-state",
+            "strength": "weak",
+            "confidence": "low",
+            "note": "forced invalid summary",
+        }
+
+        with patch("TRADING_ALGOS.machines.build_summary", return_value=invalid_summary):
+            response = execute_rsi_macd_machine(request, self._ticks(35), gap_threshold=timedelta(minutes=1))
+
+        self.assertEqual(response["status"], STATUS_ERROR)
+        self.assertTrue(any(error["code"] == "OUTPUT_SCHEMA_FAILED" for error in response["errors"]))
 
     @staticmethod
     def _request(*, strategy: str, timeframe: str, agent_id: str) -> dict[str, object]:
