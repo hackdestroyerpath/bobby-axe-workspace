@@ -44,6 +44,23 @@
 - `status = ready` => `meta.is_partial = false`, а `meta.partial_reason` должен быть `null` или отсутствовать по внутренней модели генерации.
 - `status = error` => `errors` должен содержать хотя бы одну ошибку.
 
+## Канонический `errors.scope` для всей Phase 2
+Во всей runtime/schema/docs используется единый набор scope:
+- `input` — ошибка в самом request-контракте или в обязательных входных полях до чтения данных.
+- `read` — деградация или сбой при чтении/сборе окна данных: retention, pagination drift, empty window, input gaps.
+- `normalization` — сбой нормализации raw ticks в общий runtime format.
+- `features` — сбой или остановка на этапе candle/features/strategy computation, включая insufficient warmup.
+- `output` — ошибка валидации/сборки response packet.
+- `transport` — ошибка доставки уже собранного ответа наружу.
+
+Практическая граница такая:
+- invalid request => `input`;
+- проблема с доступностью или полнотой фактических market data => `read`;
+- проблема с преобразованием данных => `normalization`;
+- проблема с расчётом признаков/стратегии => `features`;
+- проблема с самим ответом => `output`;
+- проблема с отправкой ответа => `transport`.
+
 ## Что хранить в `errors`, а что в `meta`
 ### В `meta`
 Только состояние качества и контекста, которое помогает интерпретировать даже успешный или partial-ответ:
@@ -55,15 +72,17 @@
 
 ### В `errors`
 Явные сбои, нарушения ожиданий и аномалии, которые нужно отдельно разбирать или ретраить:
-- источник не ответил / ответил с ошибкой;
-- не удалось построить обязательные свечи или признаки;
-- обязательные поля ответа не собраны;
-- сериализация / transport / output validation упали;
-- любое событие, которому нужен `code`, `message`, `severity` и, при необходимости, `retryable`.
+- request schema не прошёл обязательную проверку (`scope = input`);
+- окно данных не дочиталось, упёрлось в retention или оказалось пустым (`scope = read`);
+- нормализатор не смог собрать валидный tick stream (`scope = normalization`);
+- не удалось построить обязательные свечи или признаки (`scope = features`);
+- сериализация / output validation упали (`scope = output`);
+- transport / delivery сломались (`scope = transport`).
 
 Практическое правило:
 - если это деградация качества уже полученного результата, отражать в `meta`;
-- если это отдельный сбой или нарушение pipeline, отражать в `errors`.
+- если это отдельный сбой или нарушение pipeline, отражать в `errors`;
+- если partial вызван read-stage деградацией, `meta.partial_reason` объясняет качество, а `errors[*].scope = read` объясняет pipeline-аномалию.
 
 ## Минимальный пример partial-ответа
 ```json
@@ -91,7 +110,7 @@
   "meta": {
     "data_points": 842,
     "is_partial": true,
-    "partial_reason": "input_window_underfilled",
+    "partial_reason": "gap_heavy",
     "coverage_ratio": 0.71,
     "source_contract_version": "tick-source-v1",
     "build_version": "2026.03.23-1",
@@ -103,7 +122,7 @@
       "code": "INPUT_GAP_DETECTED",
       "message": "Gap detected inside requested input window",
       "severity": "warning",
-      "scope": "input",
+      "scope": "read",
       "retryable": true
     }
   ]

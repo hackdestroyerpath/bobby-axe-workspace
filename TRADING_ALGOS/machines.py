@@ -11,7 +11,7 @@ from .runtime_contract import (
     STATUS_ERROR,
     STATUS_PARTIAL,
     STATUS_READY,
-    WarmupAssessment,
+    ERROR_SCOPE_FEATURES,
     assess_partial_window,
     assess_warmup,
     build_meta,
@@ -77,7 +77,7 @@ class MachineExecutor:
                     "code": "INSUFFICIENT_WARMUP",
                     "message": warmup.note,
                     "severity": "warning",
-                    "scope": "features",
+                    "scope": ERROR_SCOPE_FEATURES,
                     "retryable": False,
                 },
             ]
