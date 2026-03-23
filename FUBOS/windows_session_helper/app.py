@@ -238,10 +238,14 @@ class MainWindow(QMainWindow):
         self.dashboard_label.setText(f"Dashboard: {s.name} | state={s.state_hint} | launches={s.launch_count}")
         self.command_label.setText(f"Command: {s.command}")
         self.notes_label.setText(f"Notes: {s.notes or '—'}")
+        recent_events = self.runtime.get_recent_command_events(s.name, limit=3)
+        recent_summary = " ; ".join(
+            f"{item.get('stage')}:{item.get('command_id', '')[:8]}" for item in recent_events
+        ) or "—"
         self.meta_label.setText(
             f"Meta: shell={s.shell_type} | auto_start={s.auto_start} | launches={s.launch_count} | "
             f"pid={s.process_id or '—'} | state_hint={s.state_hint} | last_seen={int(s.last_seen_ts) if s.last_seen_ts else '—'} | "
-            f"last_ok={s.last_launch_ok} | last_error={s.last_error or '—'}"
+            f"last_ok={s.last_launch_ok} | last_error={s.last_error or '—'} | recent_cmds={recent_summary}"
         )
 
     def run_auto_start_sessions(self) -> None:

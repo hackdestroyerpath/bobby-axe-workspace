@@ -53,3 +53,8 @@ pip install -r requirements.txt
 ## Important limitation
 Command dispatch is still designed for helper-launched sessions.
 If you need `Send to Selected` to work reliably, first start the target session from inside the helper.
+
+Ack behavior is best-effort:
+- helper appends an `echo <ack-marker>` after the sent command
+- this works best for PowerShell/cmd-like shells
+- complex interactive programs or non-echoing runtimes may not produce `acked`, even if the write succeeded

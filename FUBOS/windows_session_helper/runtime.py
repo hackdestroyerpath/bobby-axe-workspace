@@ -68,6 +68,23 @@ class SessionRuntimeManager:
         with self.command_log_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
+    def get_recent_command_events(self, session: str, limit: int = 5) -> list[dict]:
+        if not self.command_log_path.exists():
+            return []
+        lines = self.command_log_path.read_text(encoding="utf-8").splitlines()
+        events = []
+        for line in reversed(lines):
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if payload.get("session") != session:
+                continue
+            events.append(payload)
+            if len(events) >= limit:
+                break
+        return list(reversed(events))
+
     def stream_output(self, sessions: list[SessionProfile], session_name: str, stream, stream_name: str) -> None:
         for raw_line in iter(stream.readline, ""):
             line = raw_line.rstrip()
@@ -178,7 +195,8 @@ class SessionRuntimeManager:
             self.record_command_event(session.name, command_id, command, "failed", error="session not managed")
             return False, "session not managed", command_id
         try:
-            ack_command = f"{command}\necho {marker}"
+            sanitized_command = command.strip().rstrip(";")
+            ack_command = f"{sanitized_command}\necho {marker}"
             proc.stdin.write(ack_command + "\n")
             proc.stdin.flush()
             self.pending_acks.setdefault(session.name, {})[command_id] = marker
