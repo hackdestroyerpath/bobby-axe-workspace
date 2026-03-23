@@ -6,18 +6,14 @@
 ## Вход
 - входной тик-контракт: `TRADING_ALGOS/TICK_SOURCE_CONTRACT.md`
 - общий preprocessing-слой: `TRADING_ALGOS/common/tick_normalizer.py`
+- общий candle + microstructure engine: `TRADING_ALGOS/common/tick_to_features_engine.py`
 - выбранный диапазон истории
 - источник: см. единый контракт, без локального пересказа
 - downstream-вход стратегии: только `normalized ticks`, а не raw tick stream
+- стратегия обязана брать aligned candles только из shared engine и не описывать/не реализовывать собственную агрегацию
 
-## Базовая агрегация
-Из `normalized ticks` общего слоя собрать свечи `1m`:
-- `open`
-- `high`
-- `low`
-- `close`
-- `volume`
-- `trade_count`
+## Shared engine dependency
+Использовать `TRADING_ALGOS/common/tick_to_features_engine.py` для свечей `1m` и общих полей `open`, `high`, `low`, `close`, `volume`, `trade_count`, `buy_volume`, `sell_volume`, `delta`, `imbalance`, `trade_speed`, `relative_volume_baseline`. Локальная агрегация запрещена.
 
 ## Что считать
 По свечам `1m` считать:
