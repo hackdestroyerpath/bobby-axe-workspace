@@ -1,1 +1,0 @@
-"""Jack data collector package."""
