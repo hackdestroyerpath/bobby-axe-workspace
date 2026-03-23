@@ -11,7 +11,6 @@ from .runtime_contract import (
     STATUS_ERROR,
     STATUS_PARTIAL,
     STATUS_READY,
-    ERROR_SCOPE_FEATURES,
     RuntimeErrorInfo,
     assess_partial_window,
     assess_warmup,
@@ -103,13 +102,7 @@ class MachineExecutor:
         if not warmup.has_sufficient_warmup:
             runtime_errors = [
                 *runtime_errors,
-                {
-                    "code": "INSUFFICIENT_WARMUP",
-                    "message": warmup.note,
-                    "severity": "warning",
-                    "scope": ERROR_SCOPE_FEATURES,
-                    "retryable": False,
-                },
+                self._build_runtime_error("INSUFFICIENT_WARMUP", warmup.note),
             ]
             features: dict[str, Any] = {}
             final_status = STATUS_ERROR if warmup.status == STATUS_ERROR else STATUS_PARTIAL

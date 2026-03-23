@@ -10,6 +10,20 @@ from TRADING_ALGOS.machines import execute_rsi_macd_machine, execute_volume_mach
 from TRADING_ALGOS.runtime_contract import FAILURE_MODE_MATRIX, STATUS_ERROR, STATUS_PARTIAL, STATUS_READY
 
 
+EXPECTED_SANCTIONED_FAILURE_CODES = {
+    "REQUEST_VALIDATION_FAILED",
+    "RETENTION_WINDOW_TOO_SHALLOW",
+    "PAGINATION_DRIFT",
+    "READ_TIMEOUT",
+    "INPUT_GAP_DETECTED",
+    "EMPTY_WINDOW",
+    "NORMALIZATION_FAILED",
+    "INSUFFICIENT_WARMUP",
+    "FEATURE_ENGINE_FAILED",
+    "OUTPUT_SCHEMA_FAILED",
+    "TRANSPORT_FAILED",
+}
+
 class Phase2RuntimeTests(unittest.TestCase):
     def test_machine_registry_contains_all_12_machines(self) -> None:
         self.assertEqual(len(MACHINE_REGISTRY), 12)
@@ -62,7 +76,24 @@ class Phase2RuntimeTests(unittest.TestCase):
 
     def test_failure_mode_matrix_is_defined_for_every_machine(self) -> None:
         self.assertEqual(set(FAILURE_MODE_MATRIX), set(MACHINE_REGISTRY))
-        self.assertTrue(any(mode.code == "INSUFFICIENT_WARMUP" for mode in FAILURE_MODE_MATRIX["rsi_macd_1m"]))
+        self.assertEqual(
+            {mode.code for mode in FAILURE_MODE_MATRIX["rsi_macd_1m"]},
+            EXPECTED_SANCTIONED_FAILURE_CODES,
+        )
+
+    def test_failure_mode_matrix_retryable_flags_match_contract_expectations(self) -> None:
+        code_lookup = {mode.code: mode for mode in FAILURE_MODE_MATRIX["rsi_macd_1m"]}
+
+        self.assertTrue(code_lookup["READ_TIMEOUT"].retryable)
+        self.assertFalse(code_lookup["EMPTY_WINDOW"].retryable)
+        self.assertTrue(code_lookup["INPUT_GAP_DETECTED"].retryable)
+
+    def test_registry_retryable_codes_are_present_in_runtime_templates(self) -> None:
+        for machine_id, machine_spec in MACHINE_REGISTRY.items():
+            code_lookup = {mode.code: mode for mode in FAILURE_MODE_MATRIX[machine_id]}
+            self.assertTrue(set(machine_spec.retryable_failure_codes).issubset(code_lookup))
+            for code in machine_spec.retryable_failure_codes:
+                self.assertTrue(code_lookup[code].retryable)
 
     def test_normalization_failure_returns_error_response(self) -> None:
         request = self._request(strategy="RSI_MACD", timeframe="1m", agent_id="rsi_macd_1m")
