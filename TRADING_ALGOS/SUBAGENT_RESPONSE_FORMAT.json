@@ -1,0 +1,28 @@
+{
+  "agent_id": "string",
+  "strategy": "RSI_MACD | LEVELS_FIBO_HV | VOLUME | ELLIOTT",
+  "timeframe": "1m | 5m | 60m",
+  "symbol": "BTCUSDC",
+  "source": "Data_collector",
+  "requested_at": "ISO-8601",
+  "as_of": "ISO-8601",
+  "status": "ready | partial | error",
+  "input_window": {
+    "from": "ISO-8601",
+    "to": "ISO-8601"
+  },
+  "features": {},
+  "summary": {
+    "state": "bullish | bearish | neutral | mixed | unclear",
+    "strength": "weak | medium | strong",
+    "confidence": "low | medium | high",
+    "note": "short human-readable line"
+  },
+  "meta": {
+    "data_points": 0,
+    "build_version": "string",
+    "api_key_id": "string",
+    "machine_id": "string"
+  },
+  "errors": []
+}
