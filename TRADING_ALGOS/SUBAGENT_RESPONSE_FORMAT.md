@@ -49,7 +49,7 @@
 - `input` — ошибка в самом request-контракте или в обязательных входных полях до чтения данных.
 - `read` — деградация или сбой при чтении/сборе окна данных: retention, pagination drift, empty window, input gaps.
 - `normalization` — сбой нормализации raw ticks в общий runtime format.
-- `features` — сбой или остановка на этапе candle/features/strategy computation, включая insufficient warmup.
+- `features` — сбой или остановка на этапе candle/features/strategy computation, включая insufficient warmup; код `FEATURE_ENGINE_FAILED` покрывает как failure общего candle/feature engine, так и failure strategy-specific compute после успешной сборки свечей.
 - `output` — ошибка валидации/сборки response packet.
 - `transport` — ошибка доставки уже собранного ответа наружу.
 
@@ -83,6 +83,11 @@
 - если это деградация качества уже полученного результата, отражать в `meta`;
 - если это отдельный сбой или нарушение pipeline, отражать в `errors`;
 - если partial вызван read-stage деградацией, `meta.partial_reason` объясняет качество, а `errors[*].scope = read` объясняет pipeline-аномалию.
+
+## Failure codes, которые должны быть реально достижимы runtime
+- `NORMALIZATION_FAILED` — падение `normalize_ticks()`; ответ обязан вернуться как `status=error`, без проброса исключения наружу.
+- `FEATURE_ENGINE_FAILED` — падение `build_tick_feature_candles()` или strategy-specific compute после сборки свечей.
+- `OUTPUT_SCHEMA_FAILED` — итоговый packet не прошёл явную валидацию против `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.json`; runtime обязан вернуть fallback `status=error` packet с этой ошибкой.
 
 ## Минимальный пример partial-ответа
 ```json

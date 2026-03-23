@@ -12,12 +12,15 @@ from .runtime_contract import (
     STATUS_PARTIAL,
     STATUS_READY,
     ERROR_SCOPE_FEATURES,
+    RuntimeErrorInfo,
     assess_partial_window,
     assess_warmup,
+    build_failure_error,
     build_meta,
     build_summary,
     now_utc_iso,
     validate_request,
+    validate_response_payload,
 )
 from .strategy_cores import (
     StrategyComputation,
@@ -51,25 +54,50 @@ class MachineExecutor:
         include_incomplete_candle = bool(request.get("options", {}).get("include_incomplete_candle", False))
         window_from = _parse_dt(request["input_window"]["from"])
         window_to = _parse_dt(request["input_window"]["to"])
-        normalization = normalize_ticks(
-            ticks,
-            window_from=window_from,
-            window_to=window_to,
-            gap_threshold=gap_threshold or _default_gap_threshold(self.machine_spec.timeframe),
-            retention_floor=retention_floor,
-            page_complete=page_complete,
-        )
+
+        try:
+            normalization = normalize_ticks(
+                ticks,
+                window_from=window_from,
+                window_to=window_to,
+                gap_threshold=gap_threshold or _default_gap_threshold(self.machine_spec.timeframe),
+                retention_floor=retention_floor,
+                page_complete=page_complete,
+            )
+        except Exception as exc:
+            return self._runtime_failure_response(
+                request,
+                code="NORMALIZATION_FAILED",
+                message=f"Shared tick normalizer failed: {exc}",
+            )
+
         status, runtime_errors = assess_partial_window(normalization, strict_mode=strict_mode)
         if status == STATUS_ERROR and normalization.empty_window:
             return self._terminal_response(request, normalization, {}, runtime_errors, status)
 
-        candle_result = build_tick_feature_candles(
-            normalization.ticks,
-            window_from=window_from,
-            window_to=window_to,
-            timeframes=(self.machine_spec.timeframe,),
-            include_incomplete_candle=include_incomplete_candle,
-        )
+        try:
+            candle_result = build_tick_feature_candles(
+                normalization.ticks,
+                window_from=window_from,
+                window_to=window_to,
+                timeframes=(self.machine_spec.timeframe,),
+                include_incomplete_candle=include_incomplete_candle,
+            )
+        except Exception as exc:
+            return self._terminal_response(
+                request,
+                normalization,
+                {},
+                [
+                    *runtime_errors,
+                    self._build_runtime_error(
+                        "FEATURE_ENGINE_FAILED",
+                        f"Shared tick-to-features engine failed: {exc}",
+                    ),
+                ],
+                STATUS_ERROR,
+            )
+
         candles = candle_result.candles_by_timeframe[self.machine_spec.timeframe]
         warmup = assess_warmup(_count_usable_candles(candles), self.machine_spec.warmup, strict_mode=strict_mode)
         if not warmup.has_sufficient_warmup:
@@ -87,12 +115,31 @@ class MachineExecutor:
             final_status = STATUS_ERROR if warmup.status == STATUS_ERROR else STATUS_PARTIAL
             return self._terminal_response(request, normalization, features, runtime_errors, final_status)
 
-        computation = self.compute_fn(candles)
+        try:
+            computation = self.compute_fn(candles)
+        except Exception as exc:
+            return self._terminal_response(
+                request,
+                normalization,
+                {},
+                [
+                    *runtime_errors,
+                    self._build_runtime_error(
+                        "FEATURE_ENGINE_FAILED",
+                        f"Strategy compute failed after candle build: {exc}",
+                    ),
+                ],
+                STATUS_ERROR,
+            )
+
         final_status = STATUS_PARTIAL if normalization.is_partial else STATUS_READY
         return self._terminal_response(request, normalization, dict(computation.features), runtime_errors, final_status)
 
+    def _build_runtime_error(self, code: str, message: str | None = None) -> RuntimeErrorInfo:
+        return build_failure_error(self.machine_spec.machine_id, code, message=message)
+
     def _error_response(self, request: Mapping[str, Any], errors: list[Any]) -> dict[str, Any]:
-        return {
+        response = {
             "agent_id": request.get("agent_id", self.machine_spec.agent_id),
             "strategy": request.get("strategy", self.machine_spec.strategy),
             "timeframe": request.get("timeframe", self.machine_spec.timeframe),
@@ -122,24 +169,58 @@ class MachineExecutor:
             },
             "errors": [error.as_dict() if hasattr(error, "as_dict") else error for error in errors],
         }
+        return self._validate_or_output_failure(request, response)
+
+    def _runtime_failure_response(
+        self,
+        request: Mapping[str, Any],
+        *,
+        code: str,
+        message: str,
+        normalization: Any | None = None,
+        errors: Sequence[Any] = (),
+    ) -> dict[str, Any]:
+        response = self._build_response_payload(
+            request,
+            normalization=normalization,
+            features={},
+            errors=[*errors, self._build_runtime_error(code, message)],
+            status=STATUS_ERROR,
+        )
+        return self._validate_or_output_failure(request, response)
 
     def _terminal_response(
         self,
         request: Mapping[str, Any],
-        normalization,
+        normalization: Any,
         features: Mapping[str, Any],
         errors: list[Any],
         status: str,
     ) -> dict[str, Any]:
-        meta = build_meta(
-            machine_spec=self.machine_spec,
-            request=request,
+        response = self._build_response_payload(
+            request,
             normalization=normalization,
-            build_version=self.build_version,
+            features=features,
+            errors=errors,
+            status=status,
         )
-        meta["is_partial"] = status == STATUS_PARTIAL
-        meta["partial_reason"] = normalization.partial_reason if status == STATUS_PARTIAL else None
-        summary = build_summary(self.machine_spec.strategy, features, normalization.partial_reasons if status != STATUS_READY else ())
+        return self._validate_or_output_failure(request, response)
+
+    def _build_response_payload(
+        self,
+        request: Mapping[str, Any],
+        *,
+        normalization: Any | None,
+        features: Mapping[str, Any],
+        errors: Sequence[Any],
+        status: str,
+    ) -> dict[str, Any]:
+        meta = self._build_meta_payload(request, normalization, status)
+        summary = build_summary(
+            self.machine_spec.strategy,
+            features,
+            normalization.partial_reasons if normalization is not None and status != STATUS_READY else (),
+        )
         if status == STATUS_ERROR and not features:
             summary = {
                 "state": "mixed",
@@ -151,18 +232,92 @@ class MachineExecutor:
             "agent_id": self.machine_spec.agent_id,
             "strategy": self.machine_spec.strategy,
             "timeframe": self.machine_spec.timeframe,
-            "symbol": request["symbol"],
-            "source": request["source"],
-            "requested_at": request["requested_at"],
+            "symbol": self._safe_request_string(request, "symbol", "UNKNOWN"),
+            "source": self._safe_request_string(request, "source", "UNKNOWN"),
+            "requested_at": self._safe_request_datetime(request, "requested_at"),
             "as_of": now_utc_iso(),
-            "response_contract_version": request["response_contract_version"],
+            "response_contract_version": self._safe_request_string(request, "response_contract_version", "unknown"),
             "status": status,
-            "input_window": request["input_window"],
+            "input_window": self._safe_input_window(request),
             "features": dict(features),
             "summary": summary,
             "meta": meta,
             "errors": [error.as_dict() if hasattr(error, "as_dict") else error for error in errors],
         }
+
+    def _build_meta_payload(self, request: Mapping[str, Any], normalization: Any | None, status: str) -> dict[str, Any]:
+        if normalization is None:
+            return {
+                "data_points": 0,
+                "coverage_ratio": 0.0,
+                "is_partial": False,
+                "partial_reason": None,
+                "source_contract_version": self._safe_request_string(request, "source_contract_version", "unknown"),
+                "build_version": self.build_version,
+                "api_key_id": self.machine_spec.api_key_id,
+                "machine_id": self.machine_spec.machine_id,
+            }
+
+        normalized_request = dict(request)
+        normalized_request["source_contract_version"] = self._safe_request_string(request, "source_contract_version", "unknown")
+        meta = build_meta(
+            machine_spec=self.machine_spec,
+            request=normalized_request,
+            normalization=normalization,
+            build_version=self.build_version,
+        )
+        meta["is_partial"] = status == STATUS_PARTIAL
+        meta["partial_reason"] = None
+        if status == STATUS_PARTIAL:
+            meta["partial_reason"] = normalization.partial_reason or "insufficient_warmup"
+        return meta
+
+    def _validate_or_output_failure(self, request: Mapping[str, Any], response: dict[str, Any]) -> dict[str, Any]:
+        schema_errors = validate_response_payload(response)
+        if not schema_errors:
+            return response
+
+        output_error = self._build_runtime_error(
+            "OUTPUT_SCHEMA_FAILED",
+            f"Response contract validation failed: {'; '.join(schema_errors)}",
+        )
+        fallback = self._build_response_payload(
+            request,
+            normalization=None,
+            features={},
+            errors=[output_error],
+            status=STATUS_ERROR,
+        )
+        return fallback
+
+    def _safe_request_string(self, request: Mapping[str, Any], field: str, default: str) -> str:
+        value = request.get(field)
+        return value if isinstance(value, str) and value else default
+
+    def _safe_request_datetime(self, request: Mapping[str, Any], field: str) -> str:
+        value = request.get(field)
+        if isinstance(value, str) and value:
+            try:
+                _parse_dt(value)
+                return value
+            except ValueError:
+                pass
+        return now_utc_iso()
+
+    def _safe_input_window(self, request: Mapping[str, Any]) -> dict[str, str]:
+        value = request.get("input_window")
+        if isinstance(value, Mapping):
+            from_value = value.get("from")
+            to_value = value.get("to")
+            if isinstance(from_value, str) and from_value and isinstance(to_value, str) and to_value:
+                try:
+                    _parse_dt(from_value)
+                    _parse_dt(to_value)
+                    return {"from": from_value, "to": to_value}
+                except ValueError:
+                    pass
+        now = now_utc_iso()
+        return {"from": now, "to": now}
 
 
 def execute_rsi_macd_machine(request: Mapping[str, Any], ticks: Iterable[Mapping[str, Any] | NormalizedTick], **kwargs: Any) -> dict[str, Any]:
