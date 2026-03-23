@@ -8,6 +8,14 @@ Prototype Windows GUI helper for managing several session windows from one contr
 python app.py
 ```
 
+## Build exe
+```powershell
+build_exe.bat
+```
+
+Output:
+- `BossSessionHelper.exe` in the same folder as `build_exe.bat`
+
 ## Requirements
 - Python 3.11+
 - PySide6

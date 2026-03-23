@@ -30,8 +30,11 @@ python app.py
 build_exe.bat
 ```
 
-The executable will appear under:
-- `dist/BossSessionHelper.exe`
+The executable will appear in the same folder as `build_exe.bat`:
+- `BossSessionHelper.exe`
+
+Temporary build artifacts will still use:
+- `build/`
 
 ## Notes
 - first launch creates `sessions.json`
