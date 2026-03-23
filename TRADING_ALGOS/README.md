@@ -49,3 +49,11 @@
 - `ELLIOTT_1M.md`
 - `ELLIOTT_5M.md`
 - `ELLIOTT_60M.md`
+
+## Phase 2 артефакты
+- `machine_registry.py` — frozen registry и warmup-политики для всех 12 машин
+- `runtime_contract.py` — единый runtime pipeline, partial-policy, failure-mode matrix, summary policy
+- `strategy_cores.py` — shared family-core реализации для `RSI_MACD`, `LEVELS_FIBO_HV`, `VOLUME`, `ELLIOTT`
+- `machines.py` — 12 runtime wrappers поверх общего контракта и family-core
+- `PHASE_2_BLUEPRINT.md` — cross-cutting operational decisions для всей фазы
+- `BEN_KIM_ORCHESTRATION_CONTRACT.md` — machine-to-orchestrator readiness contract для следующей фазы
