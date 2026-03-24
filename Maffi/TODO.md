@@ -1,85 +1,65 @@
-# MAFFI INPUT CONTRACT DRAFT
+# MAFFI — DETAILED TECH SPEC FOR IMPLEMENTATION
 
-## Детальный входной контракт для Maffi
-**Статус:** локальный черновик / готов к согласованию перед выгрузкой в GitHub  
-**Назначение:** определить точный набор данных, которые внешние алгоритмы должны подготавливать для Maffi перед каждым пингом по тикеру, чтобы Maffi мог выдать финальные параметры grid setup на таймфрейме 5m.
+## Status
+Рабочее ТЗ для кодинга на основе `Maffi/TODO.md`.
 
----
+## Purpose
+Этот документ превращает входной контракт для `Maffi` в практическую инструкцию по реализации кода.
 
-# 1. Цель документа
-
-Этот документ фиксирует **не итоговую сетку**, а именно **входной пакет признаков**, который должен приходить в Maffi от внешнего контура расчётов.
-
-Maffi не должен получать в сообщении миллионы сырых тиков.  
-Maffi должен получать **сжатый, структурированный, детальный decision-package**, уже рассчитанный алгоритмами поверх тикового потока.
-
-После получения этого пакета Maffi обязан по тикеру вернуть:
-- `ticker`
-- `frame=5m`
-- `direction` (`Long` / `Short`)
-- `grid_upper_price`
-- `grid_lower_price`
-- `grid_count`
-- `tp`
-- `sl`
-- желательно также: `grid_mid_price`, `efficiency_score`, `rationale`
+Цель: чтобы ты мог писать систему не абстрактно, а поэтапно:
+- какие модули создать;
+- какие структуры данных ввести;
+- какие проверки обязательны;
+- какие признаки должны быть рассчитаны до вызова `Maffi`;
+- как `Maffi` принимает финальное решение;
+- что считается готовым MVP, а что production-ready версией.
 
 ---
 
-# 2. Общая логика pipeline
+# 1. SYSTEM ROLE OF MAFFI
 
-## Что происходит до Maffi
+## 1.1. What Maffi is
+`Maffi` — это не тик-движок и не сырой аналитический пайплайн.
 
-До пинга Maffi внешний слой должен:
-1. прочитать сырые тики из хранилища Jack
-2. очистить поток
-3. агрегировать тики
-4. посчитать волатильность
-5. посчитать структуру движения
-6. посчитать order-flow признаки
-7. определить режим рынка
-8. посчитать кандидаты диапазона сетки
-9. подготовить единый input-payload
+`Maffi` — это **decision engine for 5m grid setup**.
 
-## Что делает Maffi
+Он не должен:
+- читать сырые тики напрямую из чата;
+- принимать неструктурированные куски анализа;
+- сам заново пересчитывать весь рынок с нуля;
+- зависеть от свободного текста.
 
-Maffi получает готовый payload и на его основе:
-1. проверяет качество данных
-2. определяет пригодность рынка под сетку
-3. принимает `Long` / `Short` / `Reject`
-4. выбирает `lower` / `upper`
-5. выбирает `grid_count`
-6. рассчитывает `tp` / `sl`
-7. возвращает итоговый grid proposal
+Он должен:
+- получать **один строго структурированный payload на один тикер**;
+- валидировать полноту и качество входа;
+- оценивать пригодность рынка для grid-setup;
+- выбирать направление: `Long`, `Short` или `Reject`;
+- выбирать один grid candidate;
+- рассчитывать финальные поля grid proposal;
+- возвращать понятный и детерминированный результат.
 
 ---
 
-# 3. Общие требования к входному payload
+# 2. TARGET OUTPUT OF MAFFI
 
-## 3.1. Главные принципы
+## 2.1. Minimal output
+Минимальный выход `Maffi`:
 
-Входной payload должен быть:
-- **одним объектом на один тикер**
-- **полностью самодостаточным**
-- **машинно-читаемым**
-- **стабильным по полям**
-- **без двусмысленности в единицах измерения**
+```json
+{
+  "ticker": "BTCUSDC",
+  "frame": "5m",
+  "decision": "Long",
+  "grid_upper_price": 84580.0,
+  "grid_lower_price": 84020.0,
+  "grid_count": 11,
+  "tp": 84720.0,
+  "sl": 83880.0
+}
+```
 
-## 3.2. Формат
-
-Рекомендуемый формат — JSON object.
-
-## 3.3. Тип вызова
-
-Один запрос = один тикер.
-
-## 3.4. Обязательная политика
-
-Если каких-то обязательных данных нет, payload должен содержать явный статус неполноты, а не молча пропускать поле.
-
----
-
-# 4. Верхнеуровневая структура payload
+## 2.2. Recommended full output
+Рекомендуемый production-output:
 
 ```json
 {
@@ -87,379 +67,561 @@ Maffi получает готовый payload и на его основе:
   "generated_at_utc": "2026-03-24T00:00:00Z",
   "ticker": "BTCUSDC",
   "frame": "5m",
-  "data_quality": { ... },
-  "market_snapshot": { ... },
-  "price_structure": { ... },
-  "volatility": { ... },
-  "order_flow": { ... },
-  "trend_structure": { ... },
-  "market_regime": { ... },
-  "support_resistance": { ... },
-  "grid_candidates": { ... },
-  "decision_hints": { ... }
+  "decision": "Long",
+  "selected_candidate_id": "A",
+  "grid_lower_price": 84020.0,
+  "grid_upper_price": 84580.0,
+  "grid_mid_price": 84300.0,
+  "grid_width": 560.0,
+  "grid_count": 11,
+  "grid_step": 51.0,
+  "tp": 84720.0,
+  "sl": 83880.0,
+  "efficiency_score": 74.0,
+  "confidence": 0.81,
+  "reject": false,
+  "reject_reason": null,
+  "rationale": "Long grid selected inside active upward corridor with positive order-flow and acceptable volatility.",
+  "input_quality_status": "ok",
+  "input_quality_score": 92.0,
+  "market_regime": "trend_up"
 }
 ```
 
 ---
 
-# 5. Раздел data_quality
+# 3. HIGH-LEVEL ARCHITECTURE
 
-Этот раздел нужен, чтобы Maffi понимал, можно ли доверять входным данным.
+## 3.1. Logical pipeline
+Общий pipeline должен выглядеть так:
 
-## 5.1. Обязательные поля
+1. **tick ingestion / access layer**
+2. **tick cleaning + normalization**
+3. **feature aggregation layer**
+4. **payload builder**
+5. **payload validator**
+6. **Maffi decision engine**
+7. **result formatter**
+8. **tests + fixtures + deterministic replay**
 
-- `status: str`
-  - `ok`
-  - `degraded`
-  - `bad`
+## 3.2. Separation of responsibilities
 
-- `ticks_count_raw: int`
-- `ticks_count_clean: int`
-- `duplicate_ticks_removed: int`
-- `bad_ticks_removed: int`
-- `coverage_ratio: float`
-- `time_span_seconds: int`
-- `largest_gap_seconds: float`
-- `outlier_ratio: float`
-- `liquidity_quality_score: float`
-- `data_quality_score: float`
+### External preprocessing layer
+Этот слой отвечает за:
+- чтение сырых тиков;
+- очистку;
+- агрегацию;
+- расчёт признаков;
+- подготовку `payload`.
 
-## 5.2. Смысл полей
+### Maffi layer
+Этот слой отвечает за:
+- валидацию payload;
+- decision logic;
+- candidate selection;
+- final grid output.
 
-### `coverage_ratio`
-Доля заполненности наблюдаемого окна.
-
-### `largest_gap_seconds`
-Максимальная дыра во времени между соседними валидными тиками.
-
-### `liquidity_quality_score`
-Оценка того, насколько поток вообще пригоден для анализа сетки.
-
-### `data_quality_score`
-Итоговая оценка качества входных данных от 0 до 100.
-
-## 5.3. Для чего Maffi использует этот блок
-
-- reject при плохом качестве данных
-- понижение confidence
-- понимание, можно ли доверять параметрам диапазона и направлению
+### Important rule
+Не смешивать preprocessing и final decision в одном хаотичном модуле.
 
 ---
 
-# 6. Раздел market_snapshot
+# 4. RECOMMENDED PROJECT STRUCTURE
 
-Этот блок описывает текущую базовую рыночную картину по тикеру.
+```text
+maffi/
+  __init__.py
+  schemas.py
+  enums.py
+  models.py
+  validator.py
+  scoring.py
+  decision_engine.py
+  candidate_selector.py
+  tp_sl.py
+  formatter.py
+  errors.py
+  utils.py
 
-## 6.1. Обязательные поля
+  preprocessing/
+    __init__.py
+    tick_cleaning.py
+    aggregation.py
+    volatility.py
+    order_flow.py
+    trend_structure.py
+    regime.py
+    support_resistance.py
+    grid_candidates.py
+    payload_builder.py
 
-- `last_price: float`
-- `last_trade_ts_utc: str`
-- `mid_reference_price: float`
-- `vwap_1m: float`
-- `vwap_5m: float`
-- `vwap_15m: float`
-- `trade_count_1m: int`
-- `trade_count_5m: int`
-- `trade_count_15m: int`
-- `volume_1m: float`
-- `volume_5m: float`
-- `volume_15m: float`
-- `avg_trade_size_1m: float`
-- `avg_trade_size_5m: float`
-
-## 6.2. Для чего нужен раздел
-
-Даёт Maffi моментальный контекст:
-- где цена сейчас
-- насколько рынок живой
-- есть ли достаточная торговая активность
-
----
-
-# 7. Раздел price_structure
-
-Это базовый блок геометрии рынка.
-
-## 7.1. Обязательные поля
-
-- `open_1m: float`
-- `high_1m: float`
-- `low_1m: float`
-- `close_1m: float`
-- `open_5m: float`
-- `high_5m: float`
-- `low_5m: float`
-- `close_5m: float`
-- `open_15m: float`
-- `high_15m: float`
-- `low_15m: float`
-- `close_15m: float`
-- `local_high_5m: float`
-- `local_low_5m: float`
-- `local_high_15m: float`
-- `local_low_15m: float`
-- `range_width_1m: float`
-- `range_width_5m: float`
-- `range_width_15m: float`
-- `close_position_in_5m_range: float`
-- `close_position_in_15m_range: float`
-- `distance_to_5m_high: float`
-- `distance_to_5m_low: float`
-- `distance_to_15m_high: float`
-- `distance_to_15m_low: float`
-
-## 7.2. Нормализация
-
-Позиционные коэффициенты (`close_position_in_5m_range`, и т.п.) лучше давать в диапазоне `0..1`.
-
-## 7.3. Для чего нужен раздел
-
-Нужен для ответа на вопросы:
-- цена у верхней части диапазона или у нижней?
-- рынок растянут или сбалансирован?
-- есть ли место для Long или Short grid?
+  tests/
+    test_validator.py
+    test_scoring.py
+    test_decision_engine.py
+    test_candidate_selector.py
+    test_tp_sl.py
+    test_payload_builder.py
+    fixtures/
+      payload_ok.json
+      payload_degraded.json
+      payload_bad.json
+      payload_long.json
+      payload_short.json
+      payload_reject.json
+```
 
 ---
 
-# 8. Раздел volatility
+# 5. IMPLEMENTATION PHASES
 
-Один из самых важных блоков.
+## PHASE 1 — SCHEMA, ENUMS, MODELS, VALIDATION
 
-## 8.1. Обязательные поля
+### Goal
+Сначала зафиксировать стабильную структуру данных. Не начинать с decision logic.
 
-- `atr_like_30s: float`
-- `atr_like_1m: float`
-- `atr_like_5m: float`
-- `realized_vol_30s: float`
-- `realized_vol_1m: float`
-- `realized_vol_5m: float`
-- `return_std_30s: float`
-- `return_std_1m: float`
-- `return_std_5m: float`
-- `volatility_percentile_1h: float`
-- `volatility_regime: str`
-  - `low`
-  - `normal`
-  - `elevated`
-  - `extreme`
-- `impulse_size_last_move: float`
-- `impulse_duration_seconds: float`
-- `volatility_stability_score: float`
+## Step 1. Define enums and constants
+Создать перечисления:
+- `Frame`: `5m`
+- `QualityStatus`: `ok`, `degraded`, `bad`
+- `VolatilityRegime`: `low`, `normal`, `elevated`, `extreme`
+- `DominantSide`: `buy`, `sell`, `neutral`
+- `MarketRegime`: `trend_up`, `trend_down`, `range_balanced`, `chaotic_high_risk`
+- `DirectionHint`: `Long`, `Short`, `Neutral`
+- `Decision`: `Long`, `Short`, `Reject`
 
-## 8.2. Для чего нужен раздел
+### Result
+- единые enum-типы для всех модулей;
+- устранение строкового хаоса.
 
-Maffi использует его для:
-- выбора ширины диапазона
-- выбора плотности сетки
-- выбора буферов для TP и SL
-- фильтрации хаотических режимов
+## Step 2. Define data models
+Создать typed-модели для всех секций payload:
+- `DataQuality`
+- `MarketSnapshot`
+- `PriceStructure`
+- `Volatility`
+- `OrderFlow`
+- `TrendStructure`
+- `MarketRegimeBlock`
+- `SupportResistance`
+- `GridCandidate`
+- `GridCandidatesBlock`
+- `DecisionHints`
+- `MaffiInputPayload`
+- `MaffiOutput`
 
----
+Лучше делать через `pydantic` или dataclasses + явная валидация.
 
-# 9. Раздел order_flow
+### Result
+- стабильный контракт в коде;
+- машиночитаемая структура;
+- база для тестов.
 
-Этот блок нужен для выбора направления.
+## Step 3. Build payload validator
+Нужно реализовать валидацию трёх уровней:
 
-## 9.1. Обязательные поля
+### 3.1 Structural validation
+Проверяет:
+- все обязательные блоки присутствуют;
+- типы корректны;
+- обязательные поля не пустые;
+- `ticker` и `frame` заданы.
 
-- `buy_volume_30s: float`
-- `sell_volume_30s: float`
-- `buy_volume_1m: float`
-- `sell_volume_1m: float`
-- `buy_volume_5m: float`
-- `sell_volume_5m: float`
-- `delta_30s: float`
-- `delta_1m: float`
-- `delta_5m: float`
-- `cumulative_delta_5m: float`
-- `imbalance_ratio_30s: float`
-- `imbalance_ratio_1m: float`
-- `imbalance_ratio_5m: float`
-- `aggression_score_buy: float`
-- `aggression_score_sell: float`
-- `dominant_side: str`
-  - `buy`
-  - `sell`
-  - `neutral`
-- `order_flow_confidence: float`
+### 3.2 Semantic validation
+Проверяет:
+- `grid_upper_price > grid_lower_price`;
+- `grid_count >= 2`;
+- `coverage_ratio` в диапазоне `0..1`;
+- `confidence` в диапазоне `0..1`;
+- score в диапазоне `0..100`;
+- timestamp в ISO UTC;
+- позиционные коэффициенты в `0..1`.
 
-## 9.2. Для чего нужен раздел
+### 3.3 Cross-field validation
+Проверяет:
+- `ticks_count_clean <= ticks_count_raw`;
+- `buy_volume + sell_volume` логически не конфликтуют с `volume_*`;
+- `local_high >= local_low`;
+- `distance_to_high/low >= 0`;
+- `candidate_count == len(candidates)`;
+- `recommended_candidate_id` существует в списке candidates, если payload не degraded до критического состояния.
 
-Позволяет понять:
-- кто реально давит рынок
-- есть ли подтверждение движения объёмом
-- подтверждается ли выбранное направление реальным потоком сделок
+### Result
+- жёсткий фильтр кривых входов.
 
----
+## Step 4. Define validation result model
+Сделать отдельный объект результата валидации:
 
-# 10. Раздел trend_structure
+```python
+ValidationResult(
+    is_valid: bool,
+    severity: str,
+    errors: list[str],
+    warnings: list[str],
+    normalized_payload: MaffiInputPayload | None,
+)
+```
 
-Этот блок помогает понять характер движения.
-
-## 10.1. Обязательные поля
-
-- `price_slope_30s: float`
-- `price_slope_1m: float`
-- `price_slope_5m: float`
-- `vwap_slope_1m: float`
-- `vwap_slope_5m: float`
-- `higher_highs_score: float`
-- `higher_lows_score: float`
-- `lower_highs_score: float`
-- `lower_lows_score: float`
-- `trend_strength_score: float`
-- `trend_persistence_score: float`
-- `mean_reversion_score: float`
-- `chop_score: float`
-- `noise_score: float`
-- `reversal_frequency_score: float`
-
-## 10.2. Для чего нужен раздел
-
-Maffi использует его, чтобы:
-- отличить тренд от шума
-- не спутать range c impulse
-- выбрать Long/Short более уверенно
+### Result
+- `Maffi` не работает напрямую с сырым JSON.
 
 ---
 
-# 11. Раздел market_regime
+## PHASE 2 — PREPROCESSING / FEATURE BUILDING LAYER
 
-Это уже результат отдельной классификации, если внешний контур умеет её делать.
+### Goal
+Построить слой, который из тиков делает правильный payload для Maffi.
 
-## 11.1. Обязательные поля
+## Step 5. Build tick cleaning module
+Модуль `tick_cleaning.py` должен:
+- удалять дубли;
+- удалять явно битые тики;
+- сортировать поток по времени;
+- считать статистику очистки;
+- возвращать clean ticks + cleaning report.
 
-- `regime: str`
-  - `trend_up`
-  - `trend_down`
-  - `range_balanced`
-  - `chaotic_high_risk`
-- `confidence: float`
-- `trend_up_score: float`
-- `trend_down_score: float`
-- `range_score: float`
-- `chaos_score: float`
-- `regime_notes: str`
+### Output
+- `ticks_count_raw`
+- `ticks_count_clean`
+- `duplicate_ticks_removed`
+- `bad_ticks_removed`
+- `largest_gap_seconds`
+- `outlier_ratio`
 
-## 11.2. Для чего нужен раздел
+## Step 6. Build aggregation module
+Модуль `aggregation.py` должен строить:
+- 1m OHLC
+- 5m OHLC
+- 15m OHLC
+- count/volume stats
+- средние размеры сделок
+- локальные high/low
 
-Это сокращает пространство решения.  
-Maffi не обязан слепо принимать этот режим, но должен учитывать его как сильную подсказку.
+### Important
+Все окна и формулы должны быть детерминированными и воспроизводимыми.
+
+## Step 7. Build volatility module
+Модуль `volatility.py` должен считать:
+- `atr_like_30s`
+- `atr_like_1m`
+- `atr_like_5m`
+- `realized_vol_*`
+- `return_std_*`
+- `volatility_percentile_1h`
+- `volatility_regime`
+- `impulse_size_last_move`
+- `impulse_duration_seconds`
+- `volatility_stability_score`
+
+### Important
+Нужно заранее унифицировать:
+- что именно значит `atr_like`;
+- на каком окне считается volatility percentile;
+- как определяется `extreme volatility`.
+
+## Step 8. Build order-flow module
+Модуль `order_flow.py` должен считать:
+- buy/sell volume for `30s`, `1m`, `5m`
+- `delta_*`
+- `cumulative_delta_5m`
+- `imbalance_ratio_*`
+- `aggression_score_buy`
+- `aggression_score_sell`
+- `dominant_side`
+- `order_flow_confidence`
+
+### Important
+До кода утвердить:
+- как определяется buy/sell side;
+- формулу imbalance ratio;
+- формулу aggression score.
+
+## Step 9. Build trend structure module
+Модуль `trend_structure.py` должен считать:
+- price slopes
+- VWAP slopes
+- higher-highs / higher-lows scores
+- lower-highs / lower-lows scores
+- `trend_strength_score`
+- `trend_persistence_score`
+- `mean_reversion_score`
+- `chop_score`
+- `noise_score`
+- `reversal_frequency_score`
+
+## Step 10. Build market regime classifier
+Модуль `regime.py` должен классифицировать рынок в одно из:
+- `trend_up`
+- `trend_down`
+- `range_balanced`
+- `chaotic_high_risk`
+
+### Important
+Нужен не black box, а explainable scoring.
+
+Рекомендуемая логика:
+- score each regime separately;
+- choose dominant regime;
+- attach `regime_notes`.
+
+## Step 11. Build support/resistance module
+Модуль `support_resistance.py` должен считать:
+- support/resistance zones;
+- distances to nearest zones;
+- boundary reaction metrics;
+- wick rejection metrics;
+- level respect score.
+
+### Important
+Нужно заранее определить:
+- как строятся зоны;
+- фиксированная ширина или адаптивная;
+- как считается reaction score;
+- как считается level respect.
+
+## Step 12. Build grid candidates generator
+Модуль `grid_candidates.py` должен:
+- генерировать 1–N кандидатов сетки;
+- ранжировать их;
+- считать score каждого кандидата;
+- не возвращать одну “магическую” сетку.
+
+### Each candidate must include
+- `candidate_id`
+- `grid_lower_price`
+- `grid_upper_price`
+- `grid_width`
+- `grid_step`
+- `grid_count`
+- `range_utilization_score`
+- `oscillation_score`
+- `step_quality_score`
+- `stability_score`
+- `boundary_respect_score`
+- `grid_efficiency_score`
+- `candidate_notes`
+
+## Step 13. Build payload builder
+`payload_builder.py` должен собрать итоговый `MaffiInputPayload` из всех модулей.
+
+### Important
+Builder должен:
+- валидировать консистентность блоков;
+- уметь строить degraded payload;
+- явно маркировать критические отсутствия данных.
 
 ---
 
-# 12. Раздел support_resistance
+## PHASE 3 — DECISION ENGINE OF MAFFI
 
-Этот раздел нужен для выбора границ сетки и постановки TP/SL.
+### Goal
+Теперь на базе уже нормального payload построить decision engine.
 
-## 12.1. Обязательные поля
+## Step 14. Define rejection rules first
+До выбора Long/Short сначала описать reject policy.
 
-- `support_zone_low: float`
-- `support_zone_high: float`
-- `resistance_zone_low: float`
-- `resistance_zone_high: float`
-- `nearest_support_distance: float`
-- `nearest_resistance_distance: float`
-- `boundary_reaction_score: float`
-- `bounce_frequency_score: float`
-- `wick_rejection_score_upper: float`
-- `wick_rejection_score_lower: float`
-- `level_respect_score: float`
+### Reject conditions should include
+- `data_quality.status == bad`
+- слишком низкий `data_quality_score`
+- слишком низкий `coverage_ratio`
+- слишком высокий `largest_gap_seconds`
+- `market_regime == chaotic_high_risk` при высоком `chaos_score`
+- нет валидных `grid_candidates`
+- противоречивый сигнал: direction hint высокий, но order-flow/trend/volatility это не подтверждают
 
-## 12.2. Для чего нужен раздел
+### Output
+Если reject:
+- `decision = Reject`
+- `reject = true`
+- заполненный `reject_reason`
 
-Помогает решить:
-- где ставить нижнюю границу
-- где ставить верхнюю границу
-- где идея ломается
-- где фиксировать take profit
+## Step 15. Build direction scoring engine
+Создать `scoring.py`, где рассчитываются отдельно:
+- `long_score`
+- `short_score`
+- `reject_score`
+
+### Recommended inputs
+Для `long_score` использовать:
+- positive order flow
+- bullish trend structure
+- price location in range
+- market regime `trend_up`
+- candidate quality
+- acceptable volatility
+
+Для `short_score` симметрично:
+- selling pressure
+- bearish trend shape
+- market regime `trend_down`
+- candidate quality
+- acceptable volatility
+
+### Important
+Не делать выбор на одном поле. Нужен weighted composite score.
+
+## Step 16. Add confidence policy
+После direction scoring ввести confidence policy:
+- base confidence from regime + order flow + trend alignment;
+- downgrade by degraded data quality;
+- downgrade by unstable volatility;
+- downgrade by weak candidate quality;
+- downgrade by contradictory hints.
+
+## Step 17. Build candidate selector
+`candidate_selector.py` должен:
+- фильтровать непригодные candidates;
+- выбирать лучший candidate с учётом выбранного направления;
+- учитывать `recommended_candidate_id`, но не слепо;
+- уметь объяснить, почему выбран именно этот candidate.
+
+### Candidate rejection examples
+- width too narrow;
+- width too wide;
+- poor boundary respect;
+- unstable oscillation score;
+- слишком плохой efficiency score.
+
+## Step 18. Build TP/SL policy
+`tp_sl.py` должен выбирать:
+- `tp`
+- `sl`
+
+### Inputs
+- selected candidate;
+- direction;
+- support/resistance;
+- volatility;
+- market regime;
+- recommended hint zones.
+
+### Important
+Правила должны быть детерминированными:
+- `Long`: TP выше upper boundary, SL ниже lower boundary;
+- `Short`: TP ниже lower boundary, SL выше upper boundary;
+- буферы должны зависеть от volatility, а не быть всегда фиксированными.
+
+## Step 19. Build final decision engine
+`decision_engine.py` должен объединить:
+- validation result;
+- reject policy;
+- direction scores;
+- selected candidate;
+- TP/SL policy;
+- rationale builder.
+
+### Final output rules
+Если `Reject`:
+- candidate may be null;
+- TP/SL optional or null;
+- rationale обязательно.
+
+Если `Long/Short`:
+- candidate обязателен;
+- `grid_lower_price < grid_upper_price`;
+- `grid_count >= 2`;
+- TP/SL обязаны быть логически согласованы с direction.
 
 ---
 
-# 13. Раздел grid_candidates
+## PHASE 4 — FORMATTERS, EXPLAINABILITY, STABILITY
 
-Это важнейший блок для сужения выбора.
+### Goal
+Сделать результат пригодным для интеграции и отладки.
 
-## 13.1. Идея блока
+## Step 20. Build rationale generator
+`formatter.py` должен собирать human-readable rationale:
+- почему выбран Long/Short;
+- почему выбран candidate;
+- как data quality повлияла на confidence;
+- какие риски есть.
 
-Внешние алгоритмы не должны отдавать одну якобы “идеальную” сетку.  
-Они должны считать **несколько кандидатов** и их score.
+### Example rationale
+- “Long selected because order-flow buy pressure and positive 5m trend are aligned; candidate A offers best balance between width, boundary respect, and efficiency under normal volatility.”
 
-## 13.2. Формат
+## Step 21. Add machine-readable decision trace
+Рекомендуется возвращать дополнительный блок:
 
 ```json
 {
-  "candidate_count": 3,
-  "candidates": [
-    {
-      "candidate_id": "A",
-      "grid_lower_price": 84020.0,
-      "grid_upper_price": 84580.0,
-      "grid_width": 560.0,
-      "grid_step": 51.0,
-      "grid_count": 11,
-      "range_utilization_score": 76,
-      "oscillation_score": 68,
-      "step_quality_score": 74,
-      "stability_score": 71,
-      "boundary_respect_score": 79,
-      "grid_efficiency_score": 74,
-      "candidate_notes": "Balanced active corridor"
-    }
-  ]
+  "decision_trace": {
+    "long_score": 78.2,
+    "short_score": 24.1,
+    "reject_score": 12.0,
+    "selected_candidate_id": "A",
+    "confidence_adjustments": [
+      "-0.05 due to elevated volatility",
+      "+0.07 due to strong order_flow alignment"
+    ]
+  }
 }
 ```
 
-## 13.3. Обязательные поля каждого кандидата
+Это очень поможет при дебаге.
 
-- `candidate_id: str`
-- `grid_lower_price: float`
-- `grid_upper_price: float`
-- `grid_width: float`
-- `grid_step: float`
-- `grid_count: int`
-- `range_utilization_score: float`
-- `oscillation_score: float`
-- `step_quality_score: float`
-- `stability_score: float`
-- `boundary_respect_score: float`
-- `grid_efficiency_score: float`
-- `candidate_notes: str`
+## Step 22. Add deterministic replay support
+Нужно уметь:
+- сохранить payload в файл;
+- повторно прогнать решение на том же payload;
+- получить тот же результат.
 
-## 13.4. Для чего нужен раздел
-
-Maffi должен выбирать не “из воздуха”, а из ранжированного списка реальных кандидатов.
+Это критично для анализа спорных случаев.
 
 ---
 
-# 14. Раздел decision_hints
+## PHASE 5 — TESTING
 
-Это слой итоговых подсказок от внешнего контура, но не финальное решение.
+### Goal
+Без тестов этот контур будет выглядеть умным, но будет нестабилен.
 
-## 14.1. Обязательные поля
+## Step 23. Unit tests for validation
+Проверить:
+- корректный payload проходит;
+- отсутствующий обязательный блок валится;
+- неверные диапазоны (`confidence > 1`) валятся;
+- candidate_count mismatch ловится.
 
-- `preferred_direction_hint: str`
-  - `Long`
-  - `Short`
-  - `Neutral`
-- `direction_hint_confidence: float`
-- `recommended_candidate_id: str`
-- `recommended_tp_zone: float`
-- `recommended_sl_zone: float`
-- `reject_risk_score: float`
-- `final_payload_confidence: float`
-- `notes_for_maffi: str`
+## Step 24. Unit tests for scoring
+Проверить:
+- bullish payload даёт higher `long_score`;
+- bearish payload даёт higher `short_score`;
+- chaotic payload поднимает `reject_score`.
 
-## 14.2. Для чего нужен раздел
+## Step 25. Unit tests for candidate selection
+Проверить:
+- лучший candidate выбирается корректно;
+- invalid candidate отбрасывается;
+- `recommended_candidate_id` учитывается, но не доминирует при плохом качестве.
 
-Позволяет твоим алгоритмам заранее сузить решение, но не забирает у Maffi право финального выбора.
+## Step 26. Unit tests for TP/SL logic
+Проверить:
+- `Long`: `tp > upper`, `sl < lower`;
+- `Short`: `tp < lower`, `sl > upper`;
+- buffers scale with volatility.
+
+## Step 27. End-to-end tests
+Нужны как минимум сценарии:
+- `good long`
+- `good short`
+- `reject due to bad data`
+- `reject due to chaotic regime`
+- `degraded but usable`
 
 ---
 
-# 15. Какие поля строго обязательны для минимально рабочего Maffi
+# 6. MVP VS PRODUCTION
 
-Если резать до минимального MVP, то перед каждым пингом должны быть хотя бы:
+## 6.1. MVP
+Для MVP достаточно реализовать:
+- схемы;
+- валидатор;
+- базовый payload builder;
+- базовую direction logic;
+- candidate selector;
+- TP/SL;
+- итоговый output.
 
+### Minimal required fields for MVP
 - `ticker`
 - `last_price`
 - `vwap_5m`
@@ -475,280 +637,129 @@ Maffi должен выбирать не “из воздуха”, а из ра
 - `support_zone_high`
 - `resistance_zone_low`
 - `resistance_zone_high`
-- хотя бы 1-3 `grid_candidates`
+- `grid_candidates`
 - `preferred_direction_hint`
 - `direction_hint_confidence`
 - `recommended_tp_zone`
 - `recommended_sl_zone`
 
-Но это **минимум**, а не желательный production-вход.
+## 6.2. Production-ready
+Production-ready значит дополнительно есть:
+- explainable scoring;
+- degraded payload handling;
+- deterministic replay;
+- full tests;
+- decision trace;
+- stable field semantics;
+- documented formulas.
 
 ---
 
-# 16. Рекомендуемые единицы измерения
+# 7. CRITICAL CODING RULES
 
-Чтобы не было путаницы:
+## Rule 1
+Не кодить Long/Short decision раньше схемы и валидатора.
 
-- цены — `float`, в абсолютной цене инструмента
-- объёмы — `float`, в единицах инструмента
-- коэффициенты / score — `0..100`, если это score
-- confidence — `0..1`
-- timestamp — ISO-8601 UTC
-- процентили — `0..1` или `0..100`, но единообразно по всей схеме
+## Rule 2
+Не позволять свободным словарям гулять по коду без typed-models.
 
-Рекомендация:
-- score → `0..100`
-- confidence → `0..1`
-- positional ratios → `0..1`
+## Rule 3
+Не смешивать payload building и final decision logic.
 
----
+## Rule 4
+Все score должны иметь единый масштаб.
 
-# 17. Правила для недостающих данных
+## Rule 5
+Все confidence должны быть в `0..1`.
 
-Если какое-то поле временно недоступно:
-- не скрывать это
-- передавать `null`, если поле допустимо nullable
-- поднимать `data_quality.status = degraded`
-- обновлять `final_payload_confidence`
+## Rule 6
+Все timestamps только UTC ISO-8601.
 
-Если отсутствует критический блок:
-- payload должен маркироваться как непригодный
-- Maffi должен иметь право вернуть `rejected`
+## Rule 7
+Все reject cases должны быть явными и объяснимыми.
 
----
+## Rule 8
+Нельзя выбирать candidate “из воздуха” — только из списка candidates.
 
-# 18. Рекомендуемый полный пример payload
+## Rule 9
+Любой degraded input должен явно понижать confidence.
 
-```json
-{
-  "schema_version": "1.0",
-  "generated_at_utc": "2026-03-24T00:00:00Z",
-  "ticker": "BTCUSDC",
-  "frame": "5m",
-  "data_quality": {
-    "status": "ok",
-    "ticks_count_raw": 182340,
-    "ticks_count_clean": 181902,
-    "duplicate_ticks_removed": 311,
-    "bad_ticks_removed": 127,
-    "coverage_ratio": 0.997,
-    "time_span_seconds": 3600,
-    "largest_gap_seconds": 1.4,
-    "outlier_ratio": 0.0012,
-    "liquidity_quality_score": 88,
-    "data_quality_score": 92
-  },
-  "market_snapshot": {
-    "last_price": 84250.0,
-    "last_trade_ts_utc": "2026-03-24T00:00:00Z",
-    "mid_reference_price": 84240.0,
-    "vwap_1m": 84210.0,
-    "vwap_5m": 84190.0,
-    "vwap_15m": 84080.0,
-    "trade_count_1m": 460,
-    "trade_count_5m": 2280,
-    "trade_count_15m": 6740,
-    "volume_1m": 31.2,
-    "volume_5m": 142.8,
-    "volume_15m": 436.5,
-    "avg_trade_size_1m": 0.068,
-    "avg_trade_size_5m": 0.062
-  },
-  "price_structure": {
-    "open_1m": 84190.0,
-    "high_1m": 84270.0,
-    "low_1m": 84172.0,
-    "close_1m": 84250.0,
-    "open_5m": 84090.0,
-    "high_5m": 84290.0,
-    "low_5m": 84060.0,
-    "close_5m": 84250.0,
-    "open_15m": 83870.0,
-    "high_15m": 84290.0,
-    "low_15m": 83820.0,
-    "close_15m": 84250.0,
-    "local_high_5m": 84290.0,
-    "local_low_5m": 84060.0,
-    "local_high_15m": 84290.0,
-    "local_low_15m": 83820.0,
-    "range_width_1m": 98.0,
-    "range_width_5m": 230.0,
-    "range_width_15m": 470.0,
-    "close_position_in_5m_range": 0.83,
-    "close_position_in_15m_range": 0.91,
-    "distance_to_5m_high": 40.0,
-    "distance_to_5m_low": 190.0,
-    "distance_to_15m_high": 40.0,
-    "distance_to_15m_low": 430.0
-  },
-  "volatility": {
-    "atr_like_30s": 28.0,
-    "atr_like_1m": 55.0,
-    "atr_like_5m": 180.0,
-    "realized_vol_30s": 0.003,
-    "realized_vol_1m": 0.006,
-    "realized_vol_5m": 0.014,
-    "return_std_30s": 0.0028,
-    "return_std_1m": 0.0054,
-    "return_std_5m": 0.0131,
-    "volatility_percentile_1h": 0.67,
-    "volatility_regime": "normal",
-    "impulse_size_last_move": 140.0,
-    "impulse_duration_seconds": 220.0,
-    "volatility_stability_score": 72
-  },
-  "order_flow": {
-    "buy_volume_30s": 11.8,
-    "sell_volume_30s": 8.1,
-    "buy_volume_1m": 19.5,
-    "sell_volume_1m": 11.7,
-    "buy_volume_5m": 87.6,
-    "sell_volume_5m": 55.2,
-    "delta_30s": 3.7,
-    "delta_1m": 7.8,
-    "delta_5m": 32.4,
-    "cumulative_delta_5m": 49.1,
-    "imbalance_ratio_30s": 1.46,
-    "imbalance_ratio_1m": 1.67,
-    "imbalance_ratio_5m": 1.58,
-    "aggression_score_buy": 74,
-    "aggression_score_sell": 39,
-    "dominant_side": "buy",
-    "order_flow_confidence": 0.79
-  },
-  "trend_structure": {
-    "price_slope_30s": 0.41,
-    "price_slope_1m": 0.62,
-    "price_slope_5m": 0.71,
-    "vwap_slope_1m": 0.52,
-    "vwap_slope_5m": 0.66,
-    "higher_highs_score": 77,
-    "higher_lows_score": 74,
-    "lower_highs_score": 18,
-    "lower_lows_score": 12,
-    "trend_strength_score": 76,
-    "trend_persistence_score": 71,
-    "mean_reversion_score": 32,
-    "chop_score": 28,
-    "noise_score": 24,
-    "reversal_frequency_score": 29
-  },
-  "market_regime": {
-    "regime": "trend_up",
-    "confidence": 0.81,
-    "trend_up_score": 82,
-    "trend_down_score": 11,
-    "range_score": 33,
-    "chaos_score": 19,
-    "regime_notes": "Positive pressure with controlled volatility and stable upward slope."
-  },
-  "support_resistance": {
-    "support_zone_low": 83980.0,
-    "support_zone_high": 84060.0,
-    "resistance_zone_low": 84490.0,
-    "resistance_zone_high": 84610.0,
-    "nearest_support_distance": 190.0,
-    "nearest_resistance_distance": 240.0,
-    "boundary_reaction_score": 76,
-    "bounce_frequency_score": 69,
-    "wick_rejection_score_upper": 63,
-    "wick_rejection_score_lower": 74,
-    "level_respect_score": 72
-  },
-  "grid_candidates": {
-    "candidate_count": 3,
-    "candidates": [
-      {
-        "candidate_id": "A",
-        "grid_lower_price": 84020.0,
-        "grid_upper_price": 84580.0,
-        "grid_width": 560.0,
-        "grid_step": 51.0,
-        "grid_count": 11,
-        "range_utilization_score": 76,
-        "oscillation_score": 68,
-        "step_quality_score": 74,
-        "stability_score": 71,
-        "boundary_respect_score": 79,
-        "grid_efficiency_score": 74,
-        "candidate_notes": "Balanced active corridor"
-      },
-      {
-        "candidate_id": "B",
-        "grid_lower_price": 83990.0,
-        "grid_upper_price": 84620.0,
-        "grid_width": 630.0,
-        "grid_step": 57.0,
-        "grid_count": 11,
-        "range_utilization_score": 72,
-        "oscillation_score": 63,
-        "step_quality_score": 70,
-        "stability_score": 75,
-        "boundary_respect_score": 77,
-        "grid_efficiency_score": 72,
-        "candidate_notes": "Wider safety corridor"
-      },
-      {
-        "candidate_id": "C",
-        "grid_lower_price": 84060.0,
-        "grid_upper_price": 84510.0,
-        "grid_width": 450.0,
-        "grid_step": 41.0,
-        "grid_count": 11,
-        "range_utilization_score": 61,
-        "oscillation_score": 71,
-        "step_quality_score": 58,
-        "stability_score": 62,
-        "boundary_respect_score": 66,
-        "grid_efficiency_score": 63,
-        "candidate_notes": "Dense but slightly fragile"
-      }
-    ]
-  },
-  "decision_hints": {
-    "preferred_direction_hint": "Long",
-    "direction_hint_confidence": 0.79,
-    "recommended_candidate_id": "A",
-    "recommended_tp_zone": 84720.0,
-    "recommended_sl_zone": 83880.0,
-    "reject_risk_score": 18,
-    "final_payload_confidence": 0.84,
-    "notes_for_maffi": "Best candidate remains long-biased inside active uptrend corridor."
-  }
-}
-```
+## Rule 10
+Любое финальное решение должно быть воспроизводимым на том же payload.
 
 ---
 
-# 19. Что Maffi будет делать с этим payload
+# 8. RECOMMENDED ORDER OF CODING
 
-На основе такого входа Maffi сможет:
-1. понять, валидны ли данные
-2. проверить режим рынка
-3. сравнить grid candidates
-4. принять Long/Short
-5. выбрать лучший диапазон
-6. определить grid_count
-7. поставить TP
-8. поставить SL
-9. написать rationale
-10. вернуть итоговый ответ по тикеру
+1. `enums.py`
+2. `models.py` / `schemas.py`
+3. `validator.py`
+4. `preprocessing/payload_builder.py`
+5. `preprocessing/volatility.py`
+6. `preprocessing/order_flow.py`
+7. `preprocessing/trend_structure.py`
+8. `preprocessing/regime.py`
+9. `preprocessing/support_resistance.py`
+10. `preprocessing/grid_candidates.py`
+11. `scoring.py`
+12. `candidate_selector.py`
+13. `tp_sl.py`
+14. `decision_engine.py`
+15. `formatter.py`
+16. tests
 
 ---
 
-# 20. Итог
+# 9. DEFINITION OF DONE
 
-Для качественного решения по сетке Maffi нужен **не поток сырых тиков в чат**, а **многоуровневый входной контракт признаков**.
+`Maffi` implementation can be considered ready only if all below are true:
 
-Ключевые блоки, без которых качество резко падает:
-- `data_quality`
-- `price_structure`
-- `volatility`
-- `order_flow`
-- `trend_structure`
-- `market_regime`
-- `support_resistance`
-- `grid_candidates`
-- `decision_hints`
+- есть формальная typed-schema для входа и выхода;
+- есть validator с structural + semantic + cross-field checks;
+- preprocessing layer собирает payload детерминированно;
+- payload builder умеет собирать как `ok`, так и `degraded` input;
+- Maffi умеет вернуть `Long`, `Short` или `Reject`;
+- выбор direction делается через composite scoring, а не через одно поле;
+- candidate selection работает только по переданному списку candidates;
+- TP/SL согласованы с direction и candidate;
+- output содержит rationale;
+- output воспроизводим на одном и том же payload;
+- есть unit tests на validator, scoring, candidate selection и TP/SL;
+- есть end-to-end tests минимум на 5 сценариев.
 
-Если этот контракт соблюдён, Maffi сможет стабильно выдавать финальные параметры grid setup по каждому пингу тикера.
+---
+
+# 10. PRACTICAL NEXT MOVE
+
+Если начинать прямо сейчас, лучший старт такой:
+
+## First coding sprint
+1. сделать `enums.py`
+2. сделать `models.py`
+3. сделать `validator.py`
+4. зафиксировать один пример `payload_ok.json`
+5. написать первый `decision_engine.py` без сложной магии, но уже с `Reject/Long/Short`
+
+## Second sprint
+1. добавить scoring
+2. добавить candidate selector
+3. добавить TP/SL policy
+4. добавить rationale
+
+## Third sprint
+1. довести preprocessing modules
+2. добавить degraded handling
+3. добавить полный test suite
+4. сделать replay/debug trace
+
+---
+
+# 11. FINAL MANAGEMENT NOTE
+
+Правильный подход для `Maffi` — это не “написать умный промпт”, а построить:
+- жёсткий входной контракт;
+- прозрачный scoring;
+- детерминированный decision engine;
+- воспроизводимый output.
+
+Если хочешь сильную реализацию, код должен быть построен как **contract-driven decision system**, а не как куча эвристик в одном файле.
