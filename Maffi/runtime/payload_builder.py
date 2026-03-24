@@ -98,7 +98,7 @@ def build_maffi_payload(
     }
 
     return MaffiInputPayload(
-        schema_version="maffi-v0.1",
+        schema_version="maffi-v1",
         symbol=symbol,
         generated_at_utc=now_utc_iso(),
         source=source,

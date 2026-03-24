@@ -64,7 +64,7 @@ class MaffiFormatterTests(unittest.TestCase):
 
 def _base_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
-        "schema_version": "maffi-v0.1",
+        "schema_version": "maffi-v1",
         "symbol": "BTCUSDC",
         "generated_at_utc": "2026-03-24T12:00:00Z",
         "source": "Data_collector",

@@ -15,7 +15,7 @@ from .enums import DominantSide, MarketRegime, QualityStatus, VolatilityRegime
 from .models import MaffiInputPayload, now_utc_iso
 from .payload_builder import payload_to_dict
 
-BRIDGE_SCHEMA_VERSION = "maffi-v0.1"
+BRIDGE_SCHEMA_VERSION = "maffi-v1"
 BRIDGE_SOURCE = "Ben_Kim_orchestration"
 
 # Explicit bridge contract: which fields affect target Maffi payload groups.

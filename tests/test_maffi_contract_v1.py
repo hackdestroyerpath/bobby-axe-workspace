@@ -25,6 +25,21 @@ class MaffiContractV1Tests(unittest.TestCase):
 
         _assert_contract_v1_shape(fixture)
 
+    def test_contract_snapshot_payload_and_output_enforce_v1_schema_version(self) -> None:
+        snapshot_path = Path("Maffi/examples/contract_snapshot_v1.json")
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+
+        expected_version = snapshot["schema_version_assertion"]
+        payload = snapshot["payload"]
+        expected_output = snapshot["output"]
+
+        assert payload["schema_version"] == expected_version
+        assert expected_output["schema_version"] == expected_version
+
+        actual_output = maffi_output_to_dict(decide(payload, generated_at_override=expected_output["generated_at_utc"]))
+        assert actual_output == expected_output
+
+
 
 def _assert_contract_v1_shape(data: dict[str, Any]) -> None:
     for field in ("validation_summary", "decision_summary", "decision_trace"):
@@ -69,7 +84,7 @@ def _assert_contract_v1_shape(data: dict[str, Any]) -> None:
 
 def _base_payload(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
-        "schema_version": "maffi-v0.1",
+        "schema_version": "maffi-v1",
         "symbol": "BTCUSDC",
         "generated_at_utc": "2026-03-24T12:00:00Z",
         "source": "Data_collector",
