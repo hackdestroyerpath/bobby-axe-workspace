@@ -502,12 +502,4 @@ def _build_decision_trace(
             metrics={"confidence": confidence},
         ),
     ]
-    selection = {
-        "selected_candidate_id": selected_candidate_id,
-        "grid_upper_price": grid_candidate.grid_upper_price if grid_candidate is not None else None,
-        "grid_lower_price": grid_candidate.grid_lower_price if grid_candidate is not None else None,
-        "grid_count": grid_candidate.grid_count if grid_candidate is not None else None,
-        "grid_step": grid_candidate.grid_step if grid_candidate is not None else None,
-        "efficiency_score": grid_candidate.efficiency_score if grid_candidate is not None else None,
-    }
-    return {"steps": steps, "selection": selection}
+    return {"steps": steps}
