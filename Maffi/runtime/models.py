@@ -15,10 +15,76 @@ class ValidationIssue:
 
 
 @dataclass(frozen=True, slots=True)
+class ValidationCounts:
+    total_checks: int
+    passed: int
+    failed: int
+    warnings: int
+    skipped: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationDegrade:
+    is_degraded: bool
+    degrade_score: float
+    sources: tuple[str, ...] = ()
+    policy: str = "hard_reject_bad_soft_penalty_degraded"
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationTopReason:
+    code: str
+    count: int
+    severity: str
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationSummary:
+    counts: ValidationCounts
+    errors: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+    degrade: ValidationDegrade = field(default_factory=lambda: ValidationDegrade(is_degraded=False, degrade_score=0.0))
+    top_reasons: tuple[ValidationTopReason, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "counts": {
+                "total_checks": self.counts.total_checks,
+                "passed": self.counts.passed,
+                "failed": self.counts.failed,
+                "warnings": self.counts.warnings,
+                "skipped": self.counts.skipped,
+            },
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+            "degrade": {
+                "is_degraded": self.degrade.is_degraded,
+                "degrade_score": self.degrade.degrade_score,
+                "sources": list(self.degrade.sources),
+                "policy": self.degrade.policy,
+            },
+            "top_reasons": [
+                {
+                    "code": reason.code,
+                    "count": reason.count,
+                    "severity": reason.severity,
+                }
+                for reason in self.top_reasons
+            ],
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationResult:
     is_valid: bool
     errors: tuple[ValidationIssue, ...] = ()
     warnings: tuple[ValidationIssue, ...] = ()
+    trace: dict[str, Any] = field(default_factory=dict)
+    summary: ValidationSummary = field(
+        default_factory=lambda: ValidationSummary(
+            counts=ValidationCounts(total_checks=0, passed=0, failed=0, warnings=0),
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)

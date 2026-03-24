@@ -182,29 +182,18 @@ def _reject_output(
 
 
 def _build_validation_summary(validation: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    if getattr(validation, "summary", None) is not None:
+        return validation.summary.to_dict()
     errors = [f"{issue.field}: {issue.message}" for issue in validation.errors]
     warnings = [f"{issue.field}: {issue.message}" for issue in validation.warnings]
-    failed = len(errors)
-    warnings_count = len(warnings)
-    passed = 1 if validation.is_valid else 0
-    total_checks = passed + failed + warnings_count
     quality_status = str(payload.get("input_quality_status", "bad"))
-    is_degraded = quality_status == QualityStatus.DEGRADED.value
-    top_reasons: list[dict[str, Any]] = []
-    issue_counter: dict[tuple[str, str], int] = {}
-    for issue in tuple(validation.errors) + tuple(validation.warnings):
-        code = str(issue.field)
-        severity = "error" if issue.severity == "error" else "warning"
-        issue_counter[(code, severity)] = issue_counter.get((code, severity), 0) + 1
-    for (code, severity), count in sorted(issue_counter.items(), key=lambda item: (-item[1], item[0][0], item[0][1])):
-        top_reasons.append({"code": code, "count": count, "severity": severity})
-
+    is_degraded = quality_status in {QualityStatus.DEGRADED.value, QualityStatus.BAD.value}
     return {
         "counts": {
-            "total_checks": total_checks,
-            "passed": passed,
-            "failed": failed,
-            "warnings": warnings_count,
+            "total_checks": len(errors) + len(warnings),
+            "passed": 0,
+            "failed": len(errors),
+            "warnings": len(warnings),
             "skipped": 0,
         },
         "errors": errors,
@@ -215,7 +204,7 @@ def _build_validation_summary(validation: Any, payload: dict[str, Any]) -> dict[
             "sources": ["input_quality_status"] if is_degraded else [],
             "policy": "hard_reject_bad_soft_penalty_degraded",
         },
-        "top_reasons": top_reasons,
+        "top_reasons": [],
     }
 
 
