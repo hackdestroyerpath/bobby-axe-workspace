@@ -279,6 +279,16 @@ class LLMValidationResult:
 
 
 @dataclass(frozen=True, slots=True)
+class LLMFallbackResult:
+    action: str
+    reason: str
+    retry_allowed: bool
+    retry_recommended: bool
+    fallback_payload: dict[str, Any]
+    trace: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class FinalNormalizedResponse:
     ticker: str
     timeframe: str
