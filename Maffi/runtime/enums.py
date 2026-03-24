@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from enum import StrEnum
+from enum import Enum
+
+try:  # Python 3.11+
+    from enum import StrEnum
+except ImportError:  # pragma: no cover - compatibility path for Python 3.10
+    class StrEnum(str, Enum):
+        """Minimal StrEnum-compatible fallback for Python < 3.11."""
 
 
 class Decision(StrEnum):
