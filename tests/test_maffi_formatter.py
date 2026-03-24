@@ -25,10 +25,14 @@ class MaffiFormatterTests(unittest.TestCase):
             "input_quality_status",
             "reject_reason",
             "rationale",
+            "validation_summary",
+            "decision_summary",
             "decision_trace",
         ]
         self.assertEqual(list(serialized.keys()), expected_keys)
         self.assertIsInstance(serialized["rationale"], list)
+        self.assertIsInstance(serialized["validation_summary"], dict)
+        self.assertIsInstance(serialized["decision_summary"], dict)
         self.assertIsInstance(serialized["decision_trace"], dict)
 
     def test_stable_top_level_keys_and_trace_normalization(self) -> None:
@@ -40,7 +44,7 @@ class MaffiFormatterTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(list(first.keys()), list(second.keys()))
-        self.assertEqual(list(first["decision_trace"].keys()), ["scoring", "selection", "validation"])
+        self.assertEqual(list(first["decision_trace"].keys()), ["steps"])
 
     def test_json_serialization_round_trip(self) -> None:
         payload = _base_payload()

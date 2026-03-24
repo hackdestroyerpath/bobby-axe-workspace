@@ -20,6 +20,8 @@ _OUTPUT_ENVELOPE_KEYS = (
     "input_quality_status",
     "reject_reason",
     "rationale",
+    "validation_summary",
+    "decision_summary",
     "decision_trace",
 )
 
@@ -55,6 +57,8 @@ def maffi_output_to_dict(output: MaffiOutput) -> dict[str, Any]:
         "input_quality_status": output.input_quality_status.value,
         "reject_reason": output.reject_reason,
         "rationale": normalize_rationale(output.rationale),
+        "validation_summary": _normalize_value(output.validation_summary),
+        "decision_summary": _normalize_value(output.decision_summary),
         "decision_trace": normalize_decision_trace(output.decision_trace),
     }
     return {key: serialized[key] for key in _OUTPUT_ENVELOPE_KEYS}
