@@ -1,360 +1,475 @@
 # MAFFI TODO
 
-Статус: кодовый TODO-лист после анализа текущего `Maffi/`.
+Статус: обновлённый programming TODO по фактическому остатку работ.
 Дата: 2026-03-24
 
 ---
 
-# Короткий итог анализа
+# Короткий итог анализа текущего состояния
 
-В `Maffi/` уже собраны:
-- почти весь документный каркас нового LLM-flow;
-- examples для payload/output;
-- базовый runtime scaffold;
-- preprocessing / payload_builder / bridge / acceptance_suite;
-- decision engine старого deterministic типа, который уже частично усилен.
+На текущий момент уже закрыты и реально работают в коде:
 
-Значит, следующая задача — не писать ещё одну схему, а **довести код до рабочего LLM-per-ticker runtime**.
+## Уже сделано
+- runtime target зафиксирован под новый LLM-per-ticker flow
+- `models.py` перестроен под новый flow с compatibility-слоем
+- `payload_builder.py` собирает новый блочный `algo_payload`
+- `preprocessing.py` даёт реальный compact feature-pack:
+  - `market_snapshot`
+  - `price_structure`
+  - `volatility`
+  - `order_flow`
+  - `market_regime`
+  - `support_resistance`
+  - `quality_trust`
+- `prompt_builder.py` уже собран и тестируется
+- `llm_router.py` уже собран и тестируется
+- `llm_client.py` уже собран и тестируется
+- `output_validator.py` уже собран и тестируется
+- runtime facade (`Maffi/runtime/__init__.py`) уже экспортирует:
+  - `build_prompt`
+  - `serialize_algo_payload_for_prompt`
+  - `route_llm`
+  - `build_llm_request`
+  - `call_llm`
+  - `validate_llm_output`
 
-Главный разрыв сейчас такой:
-- **документы описывают новый LLM-flow**,
-- **часть кода всё ещё живёт в старой score-based decision логике**.
-
-Поэтому основной план должен закрыть именно этот разрыв.
-
----
-
-# План моих действий
-
-План разбит на **3 фазы**.
-
----
-
-# PHASE 1 — Rebuild core runtime around the new LLM flow
-
-## Цель фазы
-Собрать рабочее ядро нового runtime-контура:
-
-`trigger -> algo_payload -> prompt -> ticker-LLM -> output validation -> normalized final response`
-
-Это главная фаза. Ниже мои действия — детально и по мелким шагам.
+## Текущее подтверждение
+Актуальный тестовый слой зелёный:
+- **53 tests OK**
 
 ---
 
-## 1. Зафиксировать фактический runtime target
+# Главный вывод
 
-### Действия
-1. Сверить между собой:
-   - `WISH_LIST_ALGO.md`
-   - `LLM_TRIGGER_CONTRACT.md`
-   - `LLM_OUTPUT_CONTRACT.md`
-   - `FINAL_RESPONSE_ENVELOPE.md`
-   - текущие `runtime/models.py`
-2. Выписать, какие runtime-модели уже подходят новому flow, а какие нет.
-3. Отдельно отметить legacy-поля старого decision path:
-   - `long_score`
-   - `short_score`
-   - `reject_score`
-   - `entry_candidates`
-   - старый `Decision`-центричный output
-4. Зафиксировать канонический runtime path для кода, а не только для docs.
+Фаза 1 больше не про контракты, prompt и routing — они уже собраны.  
+Сейчас реальный остаток работ — это **замкнуть контур после validator и довести runtime до end-to-end execution path**.
 
-### Результат
-- один короткий execution target для runtime;
-- ясный список, что в коде остаётся, что меняется, что выпиливается постепенно.
+То есть ядро текущего остатка:
+1. `fallbacks.py`
+2. `finalize.py`
+3. `run_trigger.py`
+4. обновление acceptance/e2e под новый flow
+5. вычищение legacy-следов старого deterministic path настолько, насколько это безопасно в рамках Phase 1
 
 ---
 
-## 2. Перестроить runtime models под LLM-flow
+# ОБНОВЛЁННЫЙ TODO
 
-### Действия
-1. Разделить модели на 4 уровня:
-   - `TriggerInput`
-   - `AlgoPayload`
-   - `LLMRawResponse`
-   - `FinalNormalizedResponse`
-2. Вынести в модели новые блоки payload:
-   - `request_context`
-   - `market_snapshot`
-   - `price_structure`
-   - `volatility`
-   - `order_flow`
-   - `market_regime`
-   - `support_resistance`
-   - `grid_geometry_hints`
-   - `grid_candidates`
-   - `quality_trust`
-   - `prompt_control`
-3. Отделить transport-модели от final response-моделей.
-4. Сохранить совместимость там, где это полезно для bridge/tests.
+# PHASE 1 — Close the runnable LLM flow end-to-end
 
-### Результат
-- `models.py` соответствует новому flow;
-- старые поля больше не являются центром архитектуры.
+## Блок C — `fallbacks.py`
+
+### C1. Зафиксировать контекст после validator
+**Что сделать:**
+- открыть `LLMValidationResult`
+- открыть `LLMRawResponse`
+- зафиксировать, какие validator fail-моды уже реально есть:
+  - `json_parse_failed`
+  - `required_field_missing`
+  - `invalid_type`
+  - `invalid_range`
+  - `invalid_grids`
+  - `invalid_tp_sl`
+  - `direction_mismatch`
+  - `ticker_mismatch`
+  - `timeframe_mismatch`
+
+**Результат:**
+- ясная карта, какие ошибки fallback должен обрабатывать
 
 ---
 
-## 3. Перестроить payload_builder под реальный algo_payload
+### C2. Создать `fallbacks.py`
+**Что сделать:**
+- создать новый файл `Maffi/runtime/fallbacks.py`
+- добавить imports
+- создать scaffold функций
 
-### Действия
-1. Взять текущий `payload_builder.py` и разложить его на новые блоки.
-2. Привязать builder к данным из preprocessing.
-3. Добавить формирование:
-   - `request_context`
-   - `market_snapshot`
-   - `price_structure`
-   - `volatility`
-   - `order_flow`
-   - `market_regime`
-   - `support_resistance`
-   - `grid_geometry_hints`
-   - `grid_candidates`
-   - `quality_trust`
-   - `prompt_control`
-4. Проверить, что итоговый builder даёт compact payload, а не legacy score-pack.
-5. Оставить, если нужно, временный adapter из legacy-полей в новый формат.
-
-### Результат
-- builder реально собирает payload для LLM;
-- payload shape соответствует документам и examples.
+**Результат:**
+- отдельный runtime-модуль fallback-слоя
 
 ---
 
-## 4. Дожать preprocessing до полного feature-pack
+### C3. Добавить fallback result object
+**Что сделать:**
+- создать структурированный fallback result либо в `models.py`, либо локально в `fallbacks.py`
+- в result заложить:
+  - `action`
+  - `reason`
+  - `retry_allowed`
+  - `retry_recommended`
+  - `fallback_payload`
+  - `trace`
 
-### Действия
-1. Проверить, какие блоки уже реально считаются в `preprocessing.py`.
-2. Закрыть пробелы по:
-   - market snapshot fields
-   - short-term structure fields
-   - volatility fields
-   - order flow fields
-   - support/resistance zones
-   - quality/degradation fields
-3. Убедиться, что preprocessing не передаёт в LLM сырые тики и длинные массивы.
-4. Нормализовать quality/degradation trace.
-5. Сверить получаемые поля с `LLM_PAYLOAD_FIELD_MATRIX.md`.
-
-### Результат
-- preprocessing становится настоящим feature source для LLM-flow;
-- payload_builder больше не догадывается, а получает нормальные агрегаты.
+**Результат:**
+- downstream не работает с размытыми `dict[Any]`
 
 ---
 
-## 5. Собрать prompt builder
+### C4. Реализовать broken JSON policy
+**Что сделать:**
+- если validator вернул `json_parse_failed`, определить policy:
+  - retry once / reject
+- оформить это в коде как отдельный сценарий
 
-### Действия
-1. Создать `prompt_builder.py`.
-2. На основе `PROMPT_TEMPLATE.md` собрать deterministic prompt assembly.
-3. В prompt жёстко вставлять:
-   - ticker
-   - timeframe
-   - request_ts
-   - direction
-   - compact algo_payload
-   - required JSON-only output contract
-4. Ограничить длину prompt за счёт minimization rules.
-5. Добавить prompt versioning.
-
-### Результат
-- есть реальный код, который готовит prompt для тикерной LLM;
-- prompt стабилен и воспроизводим.
+**Результат:**
+- реакция на broken JSON формализована
 
 ---
 
-## 6. Собрать ticker-specific LLM router
+### C5. Реализовать missing fields policy
+**Что сделать:**
+- если не хватает обязательных полей,
+- определить, считается ли кейс repairable или hard reject
 
-### Действия
-1. Создать `llm_router.py`.
-2. Зафиксировать кодовый mapping:
-   - `ticker -> model/config/context`
-3. Поддержать default route и ticker overrides.
-4. Добавить risk mode / style mode hooks.
-5. Сделать router чистым и тестируемым, без скрытой магии.
-
-### Результат
-- Maffi умеет выбирать правильный LLM context под тикер.
+**Результат:**
+- обязательные поля имеют формальную remediation policy
 
 ---
 
-## 7. Реализовать LLM client layer
+### C6. Реализовать invalid range / tp-sl / grids policy
+**Что сделать:**
+- для `invalid_range`
+- для `invalid_grids`
+- для `invalid_tp_sl`
+сделать отдельные ветки policy
 
-### Действия
-1. Создать `llm_client.py`.
-2. Реализовать реальный вызов модели.
-3. Поддержать:
-   - system + user prompt
-   - JSON-only mode
-   - timeout
-   - raw response capture
-   - normalized parsed response
-4. Добавить защиту от пустого/битого ответа.
-5. Подготовить interface так, чтобы потом можно было мокать в тестах.
-
-### Результат
-- runtime может реально сходить в LLM и получить сырой ответ.
+**Результат:**
+- геометрически бессмысленный output не проходит дальше бесконтрольно
 
 ---
 
-## 8. Собрать post-LLM output validator
+### C7. Реализовать mismatch policy
+**Что сделать:**
+- отдельно описать реакцию на:
+  - `direction_mismatch`
+  - `ticker_mismatch`
+  - `timeframe_mismatch`
 
-### Действия
-1. Создать `output_validator.py`.
-2. Проверять:
-   - валидность JSON
-   - наличие всех required fields
-   - `price_down < price_up`
-   - `grids > 0`
-   - корректность `tp/sl`
-   - непустой `conclusion`
-   - согласованность с input direction
-3. Вернуть machine-readable validator result.
-4. Добавить severity / reason codes.
-
-### Результат
-- ответ модели проходит жёсткий машинный контроль до отдачи наружу.
+**Результат:**
+- response/request consistency guarded centrally
 
 ---
 
-## 9. Собрать fallback executor
+### C8. Добавить retry policy
+**Что сделать:**
+- определить max retry count
+- определить retryable codes
+- вынести это в одно место, а не размазывать по коду
 
-### Действия
-1. Создать `fallbacks.py`.
-2. Описать поведение при:
-   - broken JSON
-   - missing required fields
-   - nonsensical ranges
-   - nonsensical TP/SL
-   - contradictory output
-3. Поддержать:
-   - retry once / retry policy
-   - hard reject
-   - normalized fallback envelope
-4. Логировать, почему сработал fallback.
-
-### Результат
-- Maffi не ломается на плохом ответе модели.
+**Результат:**
+- retry decision централизован и прозрачен
 
 ---
 
-## 10. Собрать final response normalizer
+### C9. Добавить normalized fallback envelope
+**Что сделать:**
+- если нужен fallback output, он должен иметь стабильный shape
+- без случайных ad-hoc dicts
 
-### Действия
-1. Создать `finalize.py` или аналогичный слой.
-2. Привести итог к одному stable response shape.
-3. Нормализовать типы, ключи, nullable-поля и текст заключения.
-4. Убедиться, что наружу всегда уходит один и тот же envelope.
-
-### Результат
-- внешний мир получает стабильный ответ независимо от внутренней вариативности LLM.
+**Результат:**
+- downstream слои не ломаются на fallback path
 
 ---
 
-## 11. Собрать единый runtime entrypoint
+### C10. Добавить fallback tests и прогнать suite
+**Что сделать:**
+- создать `tests/test_maffi_fallbacks.py`
+- покрыть:
+  - broken JSON
+  - missing field
+  - invalid range
+  - wrong direction
+  - hard reject
+  - fallback envelope shape
+- прогнать suite
+- исправить интеграцию
 
-### Действия
-1. Создать `run_trigger.py` или `llm_flow.py`.
-2. Соединить весь контур:
-   - parse trigger
-   - build payload
-   - build prompt
-   - route ticker model
-   - call LLM
-   - validate response
-   - apply fallback/reject
-   - normalize final answer
-3. Сделать entrypoint простым и пригодным для orchestration.
-
-### Результат
-- появляется единая точка запуска Maffi под новый trigger.
+**Результат:**
+- fallback layer закрыт и зелёный
 
 ---
 
-## 12. Обновить acceptance suite под новый core flow
+## Блок D — `finalize.py`
 
-### Действия
-1. Переписать `acceptance_suite.py` так, чтобы он проверял уже новый LLM-runtime.
-2. Добавить хотя бы smoke-сценарии:
-   - healthy long
-   - healthy short
-   - weak confidence
-   - chaotic
-   - invalid llm json
-   - fallback path
-3. Сделать моки LLM client.
+### D1. Зафиксировать finalizer input/output
+**Что сделать:**
+- определить вход finalizer’а:
+  - validated output / fallback result / route meta / raw response meta
+- определить выход:
+  - `FinalNormalizedResponse`
 
-### Результат
-- Phase 1 проверяется автоматически именно как новый LLM-flow.
+**Результат:**
+- finalizer получает чёткий контракт
 
 ---
 
-## Definition of Done Phase 1
-Фаза 1 считается завершённой, если:
-- runtime models соответствуют новому LLM flow;
-- payload_builder реально собирает новый compact algo_payload;
-- preprocessing даёт полный feature-pack;
-- есть prompt builder;
-- есть ticker-specific router;
-- есть реальный llm client layer;
-- есть post-LLM validator;
-- есть fallback executor;
-- есть final response normalizer;
-- есть единый runtime entrypoint;
-- acceptance smoke suite проверяет новый flow.
+### D2. Создать `finalize.py`
+**Что сделать:**
+- создать файл `Maffi/runtime/finalize.py`
+- добавить scaffold
+
+**Результат:**
+- отдельный runtime-модуль finalization-слоя
 
 ---
 
-# PHASE 2 — Integrate with orchestration and harden runtime
+### D3. Реализовать normal flow normalization
+**Что сделать:**
+- нормализовать:
+  - `ticker`
+  - `timeframe`
+  - `direction`
+  - `tp`
+  - `sl`
+  - `grids`
+  - `price_up`
+  - `price_down`
+  - `conclusion`
+- привести к стабильным типам
 
-## Цель фазы
-Подключить новый LLM-runtime к реальному delivery/orchestration слою и сделать его устойчивым в бою.
-
-## Мои задачи
-1. Обновить `bridge.py` под новый trigger/payload flow.
-2. Связать runtime delivery с live trigger contract.
-3. Добавить structured traceability на каждый run:
-   - trigger input
-   - payload version
-   - prompt version
-   - routed ticker/model
-   - raw llm response
-   - validator result
-   - fallback result
-   - final response
-4. Добавить deterministic fixtures для prompt / llm raw output / normalized output.
-5. Подготовить e2e тесты на orchestration handoff.
-6. Проверить go/no-go path на реальных сценариях запуска.
-
-## Definition of Done Phase 2
-- orchestration умеет передать payload в новый runtime;
-- runtime умеет пройти весь trigger flow end-to-end;
-- есть трассировка и audit trail;
-- e2e сценарии зелёные.
+**Результат:**
+- success-path final response стабилен
 
 ---
 
-# PHASE 3 — Production hardening and release closure
+### D4. Реализовать fallback/reject finalization
+**Что сделать:**
+- если upstream дал fallback/reject,
+- собирать совместимый final response envelope
+- не ломать общий output contract
 
-## Цель фазы
-Закрыть production-ready требования не документом, а фактом работы системы.
+**Результат:**
+- finalizer умеет не только happy path
 
-## Мои задачи
-1. Расширить acceptance suite до production-уровня.
-2. Собрать regression pack по:
-   - prompt fixtures
-   - llm responses
-   - fallback cases
-   - trigger cases
-3. Проверить соответствие runtime всем документам в `Maffi/`.
-4. Закрыть release checklist по фактическим артефактам.
-5. Провести финальную ревизию:
-   - что legacy можно удалить,
-   - что оставить как compatibility layer,
-   - где ещё остаются узкие места.
+---
 
-## Definition of Done Phase 3
-- acceptance/regression зелёные;
-- runtime соответствует docs;
-- trigger flow production-ready;
-- release checklist реально закрыт;
-- Maffi готов к живому LLM-per-ticker режиму.
+### D5. Добавить status/meta/trace injection
+**Что сделать:**
+- прокинуть в final object:
+  - `status`
+  - `model_id`
+  - `prompt_version`
+  - `validator_summary`
+  - `trace`
+
+**Результат:**
+- final response пригоден для downstream и audit
+
+---
+
+### D6. Добавить finalize tests и прогнать suite
+**Что сделать:**
+- создать `tests/test_maffi_finalize.py`
+- покрыть:
+  - valid normalize
+  - nullable fields
+  - fallback status
+  - prompt_version/model_id pass-through
+  - trace pass-through
+- прогнать suite
+- исправить интеграцию
+
+**Результат:**
+- finalizer закрыт и зелёный
+
+---
+
+## Блок E — `run_trigger.py`
+
+### E1. Зафиксировать entrypoint contract
+**Что сделать:**
+- определить минимальный input:
+  - `ticker`
+  - `timeframe`
+  - `request_ts_utc`
+  - `direction`
+  - payload source / payload object
+- определить output:
+  - `FinalNormalizedResponse`
+
+**Результат:**
+- entrypoint имеет чёткий контракт
+
+---
+
+### E2. Создать `run_trigger.py`
+**Что сделать:**
+- создать файл `Maffi/runtime/run_trigger.py`
+- добавить scaffold orchestration-функции
+
+**Результат:**
+- отдельный entrypoint-модуль создан
+
+---
+
+### E3. Подключить payload intake
+**Что сделать:**
+- принять готовый payload или собрать его из builder-пайплайна
+- выровнять вход runtime
+
+**Результат:**
+- единая точка входа в flow
+
+---
+
+### E4. Подключить `prompt_builder`
+**Что сделать:**
+- вызвать `build_prompt(payload)`
+- получить `PromptBuildResult`
+
+**Результат:**
+- prompt входит в единый runtime-path
+
+---
+
+### E5. Подключить `llm_router`
+**Что сделать:**
+- вызвать `route_llm(prompt_result)`
+- получить `LLMRoute`
+
+**Результат:**
+- route становится частью entrypoint
+
+---
+
+### E6. Подключить `llm_client`
+**Что сделать:**
+- вызвать `call_llm(prompt_result, route)`
+- получить `LLMRawResponse`
+
+**Результат:**
+- entrypoint уже реально зовёт модель
+
+---
+
+### E7. Подключить `output_validator`
+**Что сделать:**
+- вызвать `validate_llm_output(...)`
+- получить `LLMValidationResult`
+
+**Результат:**
+- в flow появляется контрактная валидация
+
+---
+
+### E8. Подключить `fallbacks`
+**Что сделать:**
+- если validator fail,
+- применить fallback policy
+
+**Результат:**
+- flow не ломается на невалидном ответе модели
+
+---
+
+### E9. Подключить `finalize`
+**Что сделать:**
+- перевести success/fallback path в `FinalNormalizedResponse`
+
+**Результат:**
+- flow заканчивается единым final envelope
+
+---
+
+### E10. Добавить trace propagation, tests и прогнать suite
+**Что сделать:**
+- прокинуть trace/meta через весь контур
+- создать `tests/test_maffi_run_trigger.py`
+- покрыть:
+  - happy path
+  - invalid output path
+  - fallback path
+  - reject path
+  - trace propagation
+- прогнать suite
+- исправить интеграцию
+
+**Результат:**
+- runtime entrypoint закрыт и зелёный
+
+---
+
+## Блок F — Final Phase 1 closure
+
+### F1. Обновить acceptance suite под новый LLM-flow
+**Что сделать:**
+- переписать/расширить acceptance suite так, чтобы он проверял новый live chain:
+  - prompt -> route -> llm -> validator -> fallback/finalize -> final response
+
+**Результат:**
+- acceptance соответствует новому runtime
+
+---
+
+### F2. Добавить LLM-flow regression fixtures
+**Что сделать:**
+- fixtures для:
+  - prompt build
+  - llm raw response
+  - validator result
+  - fallback result
+  - final response
+
+**Результат:**
+- regression покрывает end-to-end path
+
+---
+
+### F3. Прогнать полный suite
+**Что сделать:**
+- unit suite
+- acceptance suite
+- при необходимости smoke e2e
+
+**Результат:**
+- зелёный тестовый контур всего Phase 1
+
+---
+
+### F4. Проверить legacy cleanup boundary
+**Что сделать:**
+- отметить, что из legacy deterministic path можно оставить как compatibility
+- что уже можно не использовать в новом path
+
+**Результат:**
+- чистые границы нового и старого контура
+
+---
+
+### F5. Зафиксировать Phase 1 ready state
+**Что сделать:**
+- короткий signoff по факту:
+  - runtime flow собран
+  - validator/fallback/finalize/entrypoint закрыты
+  - tests зелёные
+
+**Результат:**
+- формальное закрытие Phase 1
+
+---
+
+# Приоритет ближайшего хода
+
+Если идти правильно, ближайший порядок теперь такой:
+
+1. **Закрыть `fallbacks.py`**
+2. **Закрыть `finalize.py`**
+3. **Закрыть `run_trigger.py`**
+4. **Обновить acceptance suite**
+5. **Сделать final Phase 1 closure**
+
+---
+
+# Definition of Done
+
+Этот TODO считается закрытым, когда новый Maffi runtime по trigger-вызову:
+- принимает входной context,
+- получает/строит `algo_payload`,
+- собирает prompt,
+- выбирает route,
+- вызывает LLM,
+- валидирует output,
+- применяет fallback при необходимости,
+- собирает final normalized response,
+- и проходит unit + acceptance suite без поломок.
