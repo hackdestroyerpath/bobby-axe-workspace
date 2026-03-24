@@ -3,11 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from Maffi.runtime import decide, deterministic_replay, maffi_output_to_dict, validate_payload
-from Maffi.runtime.enums import Decision
+from Maffi.runtime import decide, deterministic_replay, maffi_output_to_dict, run_trigger, validate_payload
+from Maffi.runtime.enums import Decision, QualityStatus
+from Maffi.runtime.models import TriggerInput
+from Maffi.runtime.payload_builder import build_llm_algo_payload
+from Maffi.runtime.preprocessing import extract_preprocessing_features
+from tests.fixtures.maffi_preprocessing_fixtures import sparse_ticks
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,6 +107,56 @@ def run_scenarios() -> list[dict[str, Any]]:
     return results
 
 
+def run_llm_flow_scenarios() -> list[dict[str, Any]]:
+    trigger = TriggerInput(
+        ticker="BTCUSDC",
+        timeframe="1m",
+        request_ts_utc="2026-03-24T10:00:00Z",
+        direction="long",
+    )
+    preprocessing_result = extract_preprocessing_features(sparse_ticks())
+    payload = build_llm_algo_payload(
+        symbol="BTCUSDC",
+        window_from=datetime(2026, 3, 23, 0, 0, tzinfo=timezone.utc),
+        window_to=datetime(2026, 3, 23, 1, 0, tzinfo=timezone.utc),
+        quality=QualityStatus.OK,
+        last_price=101.0,
+        support_level=99.0,
+        resistance_level=103.0,
+        atr=1.0,
+        coverage_ratio=0.95,
+        reasons=[],
+        preprocessing_result=preprocessing_result,
+    )
+
+    llm_json = json.dumps(
+        {
+            "ticker": "BTCUSDC",
+            "timeframe": "1m",
+            "direction": "long",
+            "tp": 102.0,
+            "sl": 99.0,
+            "grids": 8,
+            "price_up": 101.5,
+            "price_down": 100.2,
+            "conclusion": "ok",
+        }
+    )
+    bad_json = "not-json"
+    queue = [llm_json, bad_json, bad_json]
+
+    def transport(_request: dict[str, Any]) -> str:
+        return queue.pop(0)
+
+    ok_result = run_trigger(trigger, algo_payload=payload, transport=transport)
+    reject_result = run_trigger(trigger, algo_payload=payload, transport=transport)
+
+    return [
+        {"scenario": "llm_happy_path", "status": ok_result.status, "ticker": ok_result.ticker},
+        {"scenario": "llm_reject_path", "status": reject_result.status, "ticker": reject_result.ticker},
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Maffi acceptance smoke suite")
     parser.add_argument("--json", action="store_true", help="Print JSON output")
@@ -109,17 +164,20 @@ def main() -> int:
 
     try:
         results = run_scenarios()
+        llm_results = run_llm_flow_scenarios()
     except SuiteFailure as exc:
         print("ACCEPTANCE_SUITE_FAILED")
         print(exc)
         return 1
 
     if args.json:
-        print(json.dumps(results, ensure_ascii=False, indent=2))
+        print(json.dumps(results + llm_results, ensure_ascii=False, indent=2))
     else:
         print("ACCEPTANCE_SUITE_OK")
         for row in results:
             print(f"- {row['scenario']}: decision={row['actual']['decision']}, valid={row['actual']['is_valid']}, replay={row['actual']['replay_equal']}")
+        for row in llm_results:
+            print(f"- {row['scenario']}: status={row['status']}, ticker={row['ticker']}")
 
     return 0
 
