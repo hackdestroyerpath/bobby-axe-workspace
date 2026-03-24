@@ -8,6 +8,8 @@ from Maffi.runtime.enums import Decision
 
 
 class MaffiDecisionEngineTests(unittest.TestCase):
+    EXPECTED_STEP_NAMES = ["gate", "direction", "range", "grid_count", "tp_sl", "confidence"]
+
     def test_validator_rejects_missing_required_field(self) -> None:
         payload = _base_payload()
         del payload["atr"]
@@ -30,6 +32,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertIsNotNone(output.sl)
         self.assertEqual(output.decision_summary["direction"], "long")
         self.assertEqual(output.decision_trace["steps"][4]["name"], "tp_sl")
+        self._assert_steps_structure_and_order(output.decision_trace["steps"])
+        self.assertTrue(all(step["status"] == "pass" for step in output.decision_trace["steps"]))
 
     def test_good_short_scenario(self) -> None:
         payload = _base_payload(long_score=32.0, short_score=77.0, reject_score=15.0)
@@ -58,8 +62,10 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertEqual(output.decision, Decision.REJECT)
         self.assertEqual(output.reject_reason, "reject_score_high")
-        self.assertEqual(len(output.decision_trace["steps"]), 6)
-        self.assertEqual(output.decision_trace["steps"][4]["status"], "fail")
+        self._assert_steps_structure_and_order(output.decision_trace["steps"])
+        self.assertEqual(output.decision_trace["steps"][0]["status"], "fail")
+        self.assertTrue(all(step["status"] in {"fail", "skip"} for step in output.decision_trace["steps"]))
+        self.assertTrue(all(isinstance(step["reason"], str) and step["reason"] for step in output.decision_trace["steps"]))
 
     def test_degraded_input_remains_usable_with_penalty(self) -> None:
         payload = _base_payload(input_quality_status="degraded", confidence_hint=0.8)
@@ -76,6 +82,20 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         first, second = deterministic_replay(copy.deepcopy(payload))
 
         self.assertEqual(first, second)
+
+    def _assert_steps_structure_and_order(self, steps: list[dict[str, object]]) -> None:
+        self.assertEqual(len(steps), 6)
+        self.assertEqual([step["name"] for step in steps], self.EXPECTED_STEP_NAMES)
+        for step in steps:
+            self.assertIn("name", step)
+            self.assertIn("status", step)
+            self.assertIn("reason", step)
+            self.assertIn("inputs", step)
+            self.assertIn("outputs", step)
+            self.assertIn("metrics", step)
+            self.assertIn("warnings", step)
+            self.assertIsInstance(step["reason"], str)
+            self.assertTrue(step["reason"])
 
 
 def _base_payload(**overrides: object) -> dict[str, object]:

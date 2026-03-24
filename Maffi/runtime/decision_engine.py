@@ -248,49 +248,90 @@ def _build_decision_trace(
     reject_score: float,
 ) -> dict[str, Any]:
     rejected = decision == Decision.REJECT
-    gate_status = "fail" if reject_reason == "validation_failed" else "pass"
-    direction_status = "fail" if rejected else "pass"
-    range_status = "skip" if rejected else "pass"
-    grid_status = "skip" if rejected else "pass"
-    tp_sl_status = "fail" if rejected else "pass"
-    confidence_status = "skip" if rejected else "pass"
+
+    def _step(
+        *,
+        name: str,
+        status: str,
+        reason: str,
+        inputs: dict[str, Any] | None = None,
+        outputs: dict[str, Any] | None = None,
+        metrics: dict[str, Any] | None = None,
+        warnings: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "name": name,
+            "status": status,
+            "reason": reason,
+            "inputs": inputs if inputs is not None else {},
+            "outputs": outputs if outputs is not None else {},
+            "metrics": metrics if metrics is not None else {},
+            "warnings": warnings if warnings is not None else [],
+        }
+
+    if rejected:
+        gate_status = "fail"
+        gate_reason = f"reject policy triggered: {reject_reason or 'unspecified'}"
+        direction_status = "skip"
+        direction_reason = "direction selection skipped on reject path"
+        range_status = "skip"
+        range_reason = "range evaluation skipped on reject path"
+        grid_status = "skip"
+        grid_reason = "grid_count selection skipped on reject path"
+        tp_sl_status = "skip"
+        tp_sl_reason = "tp/sl calculation skipped on reject path"
+        confidence_status = "skip"
+        confidence_reason = "confidence forced to 0.0 on reject path"
+    else:
+        gate_status = "pass"
+        gate_reason = "payload passed validation and policy gates"
+        direction_status = "pass"
+        direction_reason = "direction selected from score comparison"
+        range_status = "pass"
+        range_reason = "entry within corridor"
+        grid_status = "pass"
+        grid_reason = "entry candidate resolved"
+        tp_sl_status = "pass"
+        tp_sl_reason = "tp/sl computed"
+        confidence_status = "pass"
+        confidence_reason = "confidence finalized"
 
     steps = [
-        {
-            "name": "gate",
-            "status": gate_status,
-            "reason": reject_reason or "payload passed validation and policy gates",
-            "metrics": {"reject_score": reject_score},
-        },
-        {
-            "name": "direction",
-            "status": direction_status,
-            "reason": "direction selected from score comparison" if not rejected else f"rejected by {reject_reason or 'policy'}",
-            "outputs": {"direction": decision.value},
-        },
-        {
-            "name": "range",
-            "status": range_status,
-            "reason": "entry within corridor" if not rejected else "skipped for reject path",
-            "outputs": {"selected_entry": selected_entry},
-        },
-        {
-            "name": "grid_count",
-            "status": grid_status,
-            "reason": "entry candidate resolved" if not rejected else "skipped for reject path",
-            "metrics": {"selected_candidates": 1 if selected_entry is not None else 0},
-        },
-        {
-            "name": "tp_sl",
-            "status": tp_sl_status,
-            "reason": "tp/sl computed" if not rejected else "tp/sl disabled for reject",
-            "outputs": {"tp": tp, "sl": sl},
-        },
-        {
-            "name": "confidence",
-            "status": confidence_status,
-            "reason": "confidence finalized" if not rejected else "confidence fixed to zero on reject",
-            "metrics": {"confidence": confidence},
-        },
+        _step(
+            name="gate",
+            status=gate_status,
+            reason=gate_reason,
+            metrics={"reject_score": reject_score},
+        ),
+        _step(
+            name="direction",
+            status=direction_status,
+            reason=direction_reason,
+            outputs={"direction": decision.value},
+        ),
+        _step(
+            name="range",
+            status=range_status,
+            reason=range_reason,
+            outputs={"selected_entry": selected_entry},
+        ),
+        _step(
+            name="grid_count",
+            status=grid_status,
+            reason=grid_reason,
+            metrics={"selected_candidates": 1 if selected_entry is not None else 0},
+        ),
+        _step(
+            name="tp_sl",
+            status=tp_sl_status,
+            reason=tp_sl_reason,
+            outputs={"tp": tp, "sl": sl},
+        ),
+        _step(
+            name="confidence",
+            status=confidence_status,
+            reason=confidence_reason,
+            metrics={"confidence": confidence},
+        ),
     ]
     return {"steps": steps}
