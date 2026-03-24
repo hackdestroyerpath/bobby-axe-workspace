@@ -13,6 +13,13 @@
 - Candidate selection and TP/SL policy (deterministic).
 - Explainability and machine-readable decision trace included in output.
 - Deterministic replay helper (`maffi.replay`).
+- **New:** payload builder (`maffi.payload_builder`) wired to `new_collector` tick shape and `TRADING_ALGOS/common` normalization + candle feature engine.
+- **New:** explicit degradation policy with machine-readable trace reasons:
+  - empty window,
+  - heavy gaps,
+  - truncation (retention/pagination),
+  - low coverage.
+- **New:** integration tests for payload assembly (`tests/test_maffi_payload_builder.py`) with healthy/degraded/reject fixtures.
 
 ## Quality matrix
 - `input_quality_status=ok` + valid payload + low reject score -> decision `long|short`.
@@ -20,5 +27,5 @@
 - `input_quality_status=bad` OR schema invalid OR high reject score -> `reject`.
 
 ## Risks
-- Regime classifier currently assumed from payload; auto-classifier integration is still minimal.
-- Full 1m/5m/15m OHLC aggregation is not yet wired into runtime pipeline.
+- Regime/scoring calibration is heuristic and should be re-tuned on live distributions.
+- Full runtime orchestration path (Ben_Kim aggregate -> Maffi builder -> Maffi decide) is not yet wired by default entrypoint.
