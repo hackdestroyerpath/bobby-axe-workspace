@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+import json
+from pathlib import Path
 import unittest
 
-from Maffi.runtime import decide, deterministic_replay, validate_payload
+from Maffi.runtime import decide, deterministic_replay, score_grid_candidates, validate_payload
 from Maffi.runtime.enums import Decision
 
 
@@ -34,6 +36,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertEqual(output.decision_trace["steps"][4]["name"], "tp_sl")
         self._assert_steps_structure_and_order(output.decision_trace["steps"])
         self.assertTrue(all(step["status"] == "pass" for step in output.decision_trace["steps"]))
+        self.assertGreaterEqual(float(output.efficiency_score or 0.0), 0.60)
+        self.assertIsNotNone(output.selected_candidate_id)
 
     def test_good_short_scenario(self) -> None:
         payload = _base_payload(long_score=32.0, short_score=77.0, reject_score=15.0)
@@ -44,6 +48,7 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertIsNone(output.reject_reason)
         self.assertEqual(output.decision_summary["direction"], "short")
         self.assertEqual(output.decision_summary["tp_sl_logic_digest"]["mode"], "mixed")
+        self.assertGreaterEqual(float(output.efficiency_score or 0.0), 0.60)
 
     def test_bad_data_hard_reject(self) -> None:
         payload = _base_payload(input_quality_status="bad", reject_score=35.0)
@@ -82,6 +87,33 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         first, second = deterministic_replay(copy.deepcopy(payload))
 
         self.assertEqual(first, second)
+
+    def test_efficiency_score_floor_from_canonical_payload_fixture(self) -> None:
+        payload = json.loads(Path("Maffi/payload_example_ok.json").read_text(encoding="utf-8"))
+
+        output = decide(payload)
+
+        self.assertIn(output.decision, {Decision.LONG, Decision.SHORT})
+        self.assertIsNotNone(output.efficiency_score)
+        self.assertGreaterEqual(float(output.efficiency_score), 0.60)
+        self.assertEqual(
+            output.decision_trace["selection"]["selected_candidate_id"],
+            output.selected_candidate_id,
+        )
+
+    def test_grid_scoring_ranking_is_deterministic_against_fixture(self) -> None:
+        fixture = json.loads(Path("Maffi/examples/grid_candidates_scored.json").read_text(encoding="utf-8"))
+        payload = fixture["payload"]
+
+        first = score_grid_candidates(payload, Decision.LONG)
+        second = score_grid_candidates(payload, Decision.LONG)
+
+        first_ranked = [candidate.candidate_id for candidate in first.ranked]
+        second_ranked = [candidate.candidate_id for candidate in second.ranked]
+        self.assertEqual(first_ranked, second_ranked)
+        self.assertEqual(first_ranked, fixture["expected_ranked_candidate_ids"])
+        self.assertEqual(first.selected.candidate_id if first.selected else None, fixture["expected_selected_candidate_id"])
+        self.assertGreaterEqual(first.selected.efficiency_score if first.selected else 0.0, 0.60)
 
     def _assert_steps_structure_and_order(self, steps: list[dict[str, object]]) -> None:
         self.assertEqual(len(steps), 6)
