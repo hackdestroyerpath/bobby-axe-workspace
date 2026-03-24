@@ -1,0 +1,32 @@
+{
+  "counts": {
+    "total_checks": 36,
+    "passed": 34,
+    "failed": 1,
+    "warnings": 1
+  },
+  "reasons": [
+    {
+      "code": "input_quality_status",
+      "count": 1,
+      "severity": "degrade"
+    },
+    {
+      "code": "last_price",
+      "count": 1,
+      "severity": "warning"
+    },
+    {
+      "code": "atr",
+      "count": 1,
+      "severity": "error"
+    }
+  ],
+  "severity_distribution": {
+    "error": 1,
+    "warning": 1,
+    "degrade": 1
+  },
+  "degrade_score": 0.5,
+  "is_degraded": true
+}

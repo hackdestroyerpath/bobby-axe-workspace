@@ -20,6 +20,10 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertFalse(result.is_valid)
         self.assertTrue(any(issue.field == "atr" for issue in result.errors))
+        self.assertIn("counts", result.trace)
+        self.assertEqual(result.trace["counts"]["failed"], len(result.errors))
+        self.assertEqual(result.trace["counts"]["warnings"], len(result.warnings))
+        self.assertEqual(result.summary.counts.failed, len(result.errors))
 
     def test_good_long_scenario(self) -> None:
         payload = _base_payload(long_score=80.0, short_score=35.0, reject_score=10.0)
@@ -80,6 +84,27 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertIn(output.decision, {Decision.LONG, Decision.SHORT})
         self.assertAlmostEqual(output.confidence, 0.6, places=6)
         self.assertTrue(output.validation_summary["degrade"]["is_degraded"])
+        self.assertGreaterEqual(output.validation_summary["degrade"]["degrade_score"], 0.5)
+        self.assertTrue(
+            any(reason["severity"] == "degrade" for reason in output.validation_summary["top_reasons"]),
+        )
+
+    def test_validator_trace_has_severity_distribution_contract(self) -> None:
+        payload = _base_payload(input_quality_status="degraded")
+        payload["last_price"] = payload["resistance_level"] + 1.0  # type: ignore[operator]
+        payload["atr"] = 0.0
+
+        result = validate_payload(payload)
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(result.trace["counts"]["failed"], 1)
+        self.assertEqual(result.trace["counts"]["warnings"], 1)
+        self.assertEqual(result.trace["severity_distribution"]["error"], 1)
+        self.assertEqual(result.trace["severity_distribution"]["warning"], 1)
+        self.assertEqual(result.trace["severity_distribution"]["degrade"], 1)
+        self.assertTrue(result.trace["is_degraded"])
+        self.assertGreater(result.trace["degrade_score"], 0.0)
+        self.assertTrue(any(reason["severity"] == "degrade" for reason in result.trace["reasons"]))
 
     def test_deterministic_replay_same_payload_same_output_payload_fields(self) -> None:
         payload = _base_payload()
