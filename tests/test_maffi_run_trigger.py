@@ -9,6 +9,7 @@ from Maffi.runtime.models import TriggerInput
 from Maffi.runtime.payload_builder import build_llm_algo_payload
 from Maffi.runtime.preprocessing import extract_preprocessing_features
 from Maffi.runtime.run_trigger import run_trigger
+from tests.fixtures.loader import load_maffi_llm_flow_fixture
 from tests.fixtures.maffi_preprocessing_fixtures import sparse_ticks
 
 
@@ -48,29 +49,20 @@ class MaffiRunTriggerTests(unittest.TestCase):
         )
 
     def test_happy_path(self) -> None:
-        response = {
-            "ticker": "BTCUSDC", "timeframe": "1m", "direction": "long", "tp": 102.0, "sl": 99.0,
-            "grids": 8, "price_up": 101.5, "price_down": 100.2, "conclusion": "ok"
-        }
+        response = load_maffi_llm_flow_fixture("llm_raw_valid.json")
         transport = _TransportQueue([json.dumps(response)])
         result = run_trigger(self._trigger(), algo_payload=self._payload(), transport=transport)
         self.assertEqual(result.status, "ok")
         self.assertEqual(result.ticker, "BTCUSDC")
 
     def test_invalid_output_fallback_path(self) -> None:
-        response = {
-            "ticker": "BTCUSDC", "timeframe": "1m", "direction": "long", "tp": 102.0, "sl": 99.0,
-            "grids": 8, "price_up": 99.0, "price_down": 100.2, "conclusion": "bad range"
-        }
+        response = load_maffi_llm_flow_fixture("llm_raw_invalid.json")
         transport = _TransportQueue([json.dumps(response)])
         result = run_trigger(self._trigger(), algo_payload=self._payload(), transport=transport)
         self.assertEqual(result.status, "fallback")
 
     def test_retry_then_success(self) -> None:
-        good = {
-            "ticker": "BTCUSDC", "timeframe": "1m", "direction": "long", "tp": 102.0, "sl": 99.0,
-            "grids": 8, "price_up": 101.5, "price_down": 100.2, "conclusion": "ok"
-        }
+        good = load_maffi_llm_flow_fixture("llm_raw_valid.json")
         transport = _TransportQueue(["not-json", json.dumps(good)])
         result = run_trigger(self._trigger(), algo_payload=self._payload(), transport=transport)
         self.assertEqual(result.status, "ok")
@@ -86,6 +78,36 @@ class MaffiRunTriggerTests(unittest.TestCase):
         result = run_trigger(self._trigger(), algo_payload=self._payload(), transport=transport)
         self.assertIn("validator", result.trace)
         self.assertIn("fallback", result.trace)
+
+    def test_ticker_timeframe_mismatch_regression(self) -> None:
+        mismatch = load_maffi_llm_flow_fixture("validator_failures.json")["ticker_timeframe_mismatch"]
+        expected = load_maffi_llm_flow_fixture("final_expected.json")["ticker_timeframe_mismatch"]
+        expected_fallback_payload = load_maffi_llm_flow_fixture("fallback_expected.json")["ticker_mismatch"]
+
+        transport = _TransportQueue([json.dumps(mismatch)])
+        result = run_trigger(self._trigger(), algo_payload=self._payload(), transport=transport)
+
+        self.assertEqual(result.status, expected["status"])
+        self.assertEqual(result.trace["validator"], expected["trace"]["validator"])
+        normalized_fallback_trace = {
+            **result.trace["fallback"],
+            "error_codes": list(result.trace["fallback"].get("error_codes", ())),
+        }
+        self.assertEqual(normalized_fallback_trace, expected["trace"]["fallback"])
+        self.assertEqual(
+            {
+                "ticker": result.ticker,
+                "timeframe": result.timeframe,
+                "direction": result.direction,
+                "tp": result.tp,
+                "sl": result.sl,
+                "grids": result.grids,
+                "price_up": result.price_up,
+                "price_down": result.price_down,
+                "conclusion": result.conclusion,
+            },
+            expected_fallback_payload,
+        )
 
 
 if __name__ == "__main__":

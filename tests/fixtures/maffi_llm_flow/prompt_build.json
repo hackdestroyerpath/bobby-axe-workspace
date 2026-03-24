@@ -1,0 +1,8 @@
+{
+  "prompt_version": "maffi-prompt-v1",
+  "request_meta": {
+    "ticker": "BTCUSDC",
+    "timeframe": "1m",
+    "direction": "long"
+  }
+}

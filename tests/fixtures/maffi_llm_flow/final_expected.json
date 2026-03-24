@@ -1,0 +1,26 @@
+{
+  "ticker_timeframe_mismatch": {
+    "status": "fallback",
+    "trace": {
+      "validator": {
+        "step": "request_consistency",
+        "status": "fail",
+        "expected_ticker": "BTCUSDC",
+        "actual_ticker": "ETHUSDC",
+        "expected_timeframe": "1m",
+        "actual_timeframe": "5m"
+      },
+      "fallback": {
+        "step": "fallback_policy",
+        "retry_attempt": 0,
+        "max_retry_count": 1,
+        "error_codes": [
+          "ticker_mismatch",
+          "timeframe_mismatch"
+        ],
+        "primary_code": "ticker_mismatch",
+        "action": "fallback"
+      }
+    }
+  }
+}
