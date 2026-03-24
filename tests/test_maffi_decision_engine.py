@@ -85,13 +85,40 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertEqual(output.reject_reason, "confidence_too_low")
         self.assertEqual(output.decision_trace["steps"][0]["status"], "fail")
 
-    def test_direction_conflict_reject_when_gap_small_and_confidence_low(self) -> None:
-        payload = _base_payload(long_score=51.0, short_score=49.0, confidence_hint=0.45, reject_score=20.0)
+    def test_direction_conflict_policy_reject_when_conflict_high_and_confidence_low(self) -> None:
+        payload = _base_payload(
+            long_score=68.0,
+            short_score=56.0,
+            dominant_side="sellers",
+            confidence_hint=0.45,
+            reject_score=20.0,
+            market_regime="noisy",
+        )
 
         output = decide(payload)
 
         self.assertEqual(output.decision, Decision.REJECT)
-        self.assertEqual(output.reject_reason, "direction_conflict")
+        self.assertEqual(output.reject_reason, "direction_conflict_policy_reject")
+
+    def test_direction_trace_exposes_conflict_and_priority_reasons(self) -> None:
+        payload = _base_payload(
+            long_score=51.0,
+            short_score=49.0,
+            dominant_side="buyers",
+            confidence_hint=0.80,
+            market_regime="ranging",
+            reject_score=20.0,
+        )
+
+        output = decide(payload)
+
+        self.assertIn(output.decision, {Decision.LONG, Decision.SHORT})
+        direction_step = output.decision_trace["steps"][1]
+        self.assertIn("reasons", direction_step)
+        self.assertTrue(any(reason["code"] == "near_equal_scores" for reason in direction_step["reasons"]))
+        self.assertIn("score_gap", direction_step["metrics"])
+        self.assertIn("regime_weight", direction_step["metrics"])
+        self.assertIn("side_bias_contribution", direction_step["metrics"])
 
     def test_degraded_input_remains_usable_with_penalty(self) -> None:
         payload = _base_payload(input_quality_status="degraded", confidence_hint=0.8)

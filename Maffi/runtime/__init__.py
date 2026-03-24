@@ -5,6 +5,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Any
 
+from .decision_engine import _resolve_direction
 from .enums import Decision, QualityStatus
 from .models import CandidateScore, CandidateSelection, MaffiOutput, ValidationCounts, ValidationIssue, ValidationResult, ValidationSummaryObj
 
@@ -106,8 +107,26 @@ def decide(payload: dict[str, Any], *, generated_at_override: str | None = None)
     generated_at = generated_at_override or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     steps = []
-    def step(name: str, status: str, reason: str, metrics: dict[str, Any] | None = None):
-        steps.append({"name": name, "status": status, "reason": reason, "inputs": {}, "outputs": {}, "metrics": metrics or {}, "warnings": []})
+    def step(
+        name: str,
+        status: str,
+        reason: str,
+        metrics: dict[str, Any] | None = None,
+        *,
+        reasons: list[dict[str, Any]] | None = None,
+    ):
+        steps.append(
+            {
+                "name": name,
+                "status": status,
+                "reason": reason,
+                "reasons": reasons or [{"code": reason, "priority": 100}],
+                "inputs": {},
+                "outputs": {},
+                "metrics": metrics or {},
+                "warnings": [],
+            },
+        )
 
     if not validation.is_valid:
         reject_reason = "validation_failed"
@@ -138,26 +157,49 @@ def decide(payload: dict[str, Any], *, generated_at_override: str | None = None)
         selected = None
         confidence = 0.0
     else:
-        long_score = float(payload["long_score"])
-        short_score = float(payload["short_score"])
-        score_gap = abs(long_score - short_score)
-        if score_gap < 3 and float(payload["confidence_hint"]) < 0.5:
-            reject_reason = "direction_conflict"
+        confidence_hint = float(payload["confidence_hint"])
+        direction_resolution = _resolve_direction(payload)
+        conflict_is_too_high = direction_resolution.conflict_intensity >= 0.35
+        confidence_is_low = min(confidence_hint, direction_resolution.certainty) < 0.5
+        if conflict_is_too_high and confidence_is_low:
+            reject_reason = "direction_conflict_policy_reject"
             decision = Decision.REJECT
             for name in ["gate", "direction", "range", "grid_count", "tp_sl", "confidence"]:
-                step(name, "fail" if name == "gate" else "skip", reject_reason)
+                step(
+                    name,
+                    "fail" if name == "gate" else "skip",
+                    reject_reason,
+                    metrics={
+                        "score_gap": direction_resolution.score_gap,
+                        "regime_weight": direction_resolution.regime_weight,
+                        "side_bias_contribution": direction_resolution.side_bias_contribution,
+                        "conflict_intensity": direction_resolution.conflict_intensity,
+                    },
+                    reasons=list(direction_resolution.reasons),
+                )
             selected = None
             confidence = 0.0
         else:
-            decision = Decision.LONG if long_score >= short_score else Decision.SHORT
+            decision = direction_resolution.decision
             reject_reason = None
             ranked = score_grid_candidates(payload, decision)
             selected = ranked.selected
-            confidence = float(payload["confidence_hint"])
+            confidence = min(confidence_hint, direction_resolution.certainty)
             if payload["input_quality_status"] == QualityStatus.DEGRADED.value:
                 confidence = max(0.0, confidence - 0.2)
             step("gate", "pass", "accepted", {"reject_score": float(payload["reject_score"])})
-            step("direction", "pass", "resolved", {"score_gap": score_gap})
+            step(
+                "direction",
+                "pass",
+                "resolved",
+                {
+                    "score_gap": direction_resolution.score_gap,
+                    "regime_weight": direction_resolution.regime_weight,
+                    "side_bias_contribution": direction_resolution.side_bias_contribution,
+                    "conflict_intensity": direction_resolution.conflict_intensity,
+                },
+                reasons=list(direction_resolution.reasons),
+            )
             width_to_atr = (float(payload["resistance_level"]) - float(payload["support_level"])) / max(float(payload["atr"]), 1.0)
             step("range", "pass", "range_scored", {"width_to_atr": width_to_atr})
             step("grid_count", "pass", "candidate_selected", {"candidate_id": selected.candidate_id if selected else None})
