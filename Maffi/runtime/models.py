@@ -56,6 +56,12 @@ class MaffiOutput:
     input_quality_status: QualityStatus
     reject_reason: str | None
     rationale: tuple[str, ...]
+    grid_upper_price: float | None
+    grid_lower_price: float | None
+    grid_count: int | None
+    grid_step: float | None
+    efficiency_score: float | None
+    selected_candidate_id: str | None
     validation_summary: dict[str, Any]
     decision_summary: dict[str, Any]
     decision_trace: dict[str, Any]

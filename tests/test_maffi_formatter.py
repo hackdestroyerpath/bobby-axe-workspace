@@ -25,6 +25,12 @@ class MaffiFormatterTests(unittest.TestCase):
             "input_quality_status",
             "reject_reason",
             "rationale",
+            "grid_upper_price",
+            "grid_lower_price",
+            "grid_count",
+            "grid_step",
+            "efficiency_score",
+            "selected_candidate_id",
             "validation_summary",
             "decision_summary",
             "decision_trace",
@@ -44,7 +50,7 @@ class MaffiFormatterTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(list(first.keys()), list(second.keys()))
-        self.assertEqual(list(first["decision_trace"].keys()), ["steps"])
+        self.assertEqual(list(first["decision_trace"].keys()), ["selection", "steps"])
 
     def test_json_serialization_round_trip(self) -> None:
         payload = _base_payload()

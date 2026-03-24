@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from .enums import Decision, QualityStatus
+from .grid_scoring import GridCandidateScore, score_grid_candidates
 from .models import MaffiOutput, now_utc_iso
 from .validator import validate_payload
 
@@ -52,7 +53,18 @@ def decide(
     confidence = max(0.0, min(1.0, float(payload["confidence_hint"]) - quality_penalty))
 
     decision = Decision.LONG if long_score >= short_score else Decision.SHORT
-    selected_entry = _select_entry(payload["entry_candidates"], decision, payload["last_price"])
+    scoring = score_grid_candidates(payload, decision)
+    if scoring.selected is None:
+        return _reject_output(
+            payload,
+            "efficiency_score_low",
+            ["No grid candidate met efficiency_score >= 0.60."],
+            validation_summary=validation_summary,
+            generated_at=generated_at,
+            grid_candidate=scoring.ranked[0] if scoring.ranked else None,
+            selected_candidate_id=None,
+        )
+    selected_entry = scoring.selected.entry_price
     tp, sl = _tp_sl(selected_entry, payload["atr"], decision, payload["support_level"], payload["resistance_level"])
 
     rationale = (
@@ -67,6 +79,7 @@ def decide(
         tp=tp,
         sl=sl,
         atr=float(payload["atr"]),
+        selected_candidate_id=scoring.selected.candidate_id,
     )
     trace = _build_decision_trace(
         decision=decision,
@@ -76,6 +89,8 @@ def decide(
         sl=sl,
         reject_reason=None,
         reject_score=reject_score,
+        grid_candidate=scoring.selected,
+        selected_candidate_id=scoring.selected.candidate_id,
     )
     return MaffiOutput(
         schema_version=str(payload["schema_version"]),
@@ -89,18 +104,16 @@ def decide(
         input_quality_status=QualityStatus(payload["input_quality_status"]),
         reject_reason=None,
         rationale=rationale,
+        grid_upper_price=scoring.selected.grid_upper_price,
+        grid_lower_price=scoring.selected.grid_lower_price,
+        grid_count=scoring.selected.grid_count,
+        grid_step=scoring.selected.grid_step,
+        efficiency_score=scoring.selected.efficiency_score,
+        selected_candidate_id=scoring.selected.candidate_id,
         validation_summary=validation_summary,
         decision_summary=decision_summary,
         decision_trace=trace,
     )
-
-
-def _select_entry(candidates: list[float], decision: Decision, last_price: float) -> float:
-    if decision == Decision.LONG:
-        viable = [float(c) for c in candidates if float(c) <= float(last_price)]
-        return max(viable) if viable else float(min(candidates))
-    viable = [float(c) for c in candidates if float(c) >= float(last_price)]
-    return min(viable) if viable else float(max(candidates))
 
 
 def _tp_sl(entry: float, atr: float, decision: Decision, support: float, resistance: float) -> tuple[float, float]:
@@ -121,6 +134,8 @@ def _reject_output(
     *,
     validation_summary: dict[str, Any],
     generated_at: str,
+    grid_candidate: GridCandidateScore | None = None,
+    selected_candidate_id: str | None = None,
 ) -> MaffiOutput:
     reject_score = float(payload.get("reject_score", 0.0)) if isinstance(payload.get("reject_score"), (int, float)) else 0.0
     decision_summary = _build_decision_summary(
@@ -130,6 +145,7 @@ def _reject_output(
         sl=None,
         atr=float(payload.get("atr", 0.0)) if isinstance(payload.get("atr"), (int, float)) else 0.0,
         reject_reason=reason,
+        selected_candidate_id=selected_candidate_id,
     )
     return MaffiOutput(
         schema_version=str(payload.get("schema_version", "maffi-v0.1")),
@@ -143,6 +159,12 @@ def _reject_output(
         input_quality_status=QualityStatus(payload.get("input_quality_status", QualityStatus.BAD.value)),
         reject_reason=reason,
         rationale=tuple(rationale),
+        grid_upper_price=grid_candidate.grid_upper_price if grid_candidate is not None else None,
+        grid_lower_price=grid_candidate.grid_lower_price if grid_candidate is not None else None,
+        grid_count=grid_candidate.grid_count if grid_candidate is not None else None,
+        grid_step=grid_candidate.grid_step if grid_candidate is not None else None,
+        efficiency_score=grid_candidate.efficiency_score if grid_candidate is not None else None,
+        selected_candidate_id=selected_candidate_id,
         validation_summary=validation_summary,
         decision_summary=decision_summary,
         decision_trace=_build_decision_trace(
@@ -153,6 +175,8 @@ def _reject_output(
             sl=None,
             reject_reason=reason,
             reject_score=reject_score,
+            grid_candidate=grid_candidate,
+            selected_candidate_id=selected_candidate_id,
         ),
     )
 
@@ -203,9 +227,14 @@ def _build_decision_summary(
     sl: float | None,
     atr: float,
     reject_reason: str | None = None,
+    selected_candidate_id: str | None = None,
 ) -> dict[str, Any]:
     direction = decision.value
-    selected_candidate_id = f"{direction}-{selected_entry:.2f}" if selected_entry is not None else "reject-none"
+    resolved_candidate_id = (
+        selected_candidate_id
+        if selected_candidate_id is not None
+        else (f"{direction}-{selected_entry:.2f}" if selected_entry is not None else "reject-none")
+    )
     if decision == Decision.REJECT:
         tp_sl_logic_digest = {
             "mode": "none",
@@ -232,7 +261,7 @@ def _build_decision_summary(
         }
     return {
         "direction": direction,
-        "selected_candidate_id": selected_candidate_id,
+        "selected_candidate_id": resolved_candidate_id,
         "tp_sl_logic_digest": tp_sl_logic_digest,
     }
 
@@ -246,6 +275,8 @@ def _build_decision_trace(
     sl: float | None,
     reject_reason: str | None,
     reject_score: float,
+    grid_candidate: GridCandidateScore | None,
+    selected_candidate_id: str | None,
 ) -> dict[str, Any]:
     rejected = decision == Decision.REJECT
 
@@ -319,7 +350,17 @@ def _build_decision_trace(
             name="grid_count",
             status=grid_status,
             reason=grid_reason,
-            metrics={"selected_candidates": 1 if selected_entry is not None else 0},
+            outputs={
+                "selected_candidate_id": selected_candidate_id,
+                "grid_count": grid_candidate.grid_count if grid_candidate is not None else None,
+                "grid_lower_price": grid_candidate.grid_lower_price if grid_candidate is not None else None,
+                "grid_upper_price": grid_candidate.grid_upper_price if grid_candidate is not None else None,
+                "grid_step": grid_candidate.grid_step if grid_candidate is not None else None,
+            },
+            metrics={
+                "selected_candidates": 1 if selected_entry is not None else 0,
+                "efficiency_score": grid_candidate.efficiency_score if grid_candidate is not None else None,
+            },
         ),
         _step(
             name="tp_sl",
@@ -334,4 +375,12 @@ def _build_decision_trace(
             metrics={"confidence": confidence},
         ),
     ]
-    return {"steps": steps}
+    selection = {
+        "selected_candidate_id": selected_candidate_id,
+        "grid_upper_price": grid_candidate.grid_upper_price if grid_candidate is not None else None,
+        "grid_lower_price": grid_candidate.grid_lower_price if grid_candidate is not None else None,
+        "grid_count": grid_candidate.grid_count if grid_candidate is not None else None,
+        "grid_step": grid_candidate.grid_step if grid_candidate is not None else None,
+        "efficiency_score": grid_candidate.efficiency_score if grid_candidate is not None else None,
+    }
+    return {"steps": steps, "selection": selection}
