@@ -34,6 +34,7 @@
 - shared feature engine: `TRADING_ALGOS/common/tick_to_features_engine.py`
 - единый request schema: `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_REQUEST_FORMAT.md`
 - единый response schema: `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.json` и `TRADING_ALGOS/SUBAGENT_RESPONSE_FORMAT.md`
+- canonical operational план Phase 3: `TRADING_ALGOS/TODO.md`
 
 ## Структура папки
 - `TICK_SOURCE_CONTRACT.md`

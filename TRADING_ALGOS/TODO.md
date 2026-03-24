@@ -1,6 +1,9 @@
-# TO-DO_NEW
+# TODO — PHASE 3 CANONICAL PLAN
 
 # PHASE 3 — INTEGRATION VALIDATION, BTC PACKAGING, STORAGE HANDOFF READINESS
+
+## Canonical source
+Этот файл (`TRADING_ALGOS/TODO.md`) — единственный source-of-truth для operational плана `PHASE 3` в текущем цикле.
 
 ## Status
 Утверждено как актуальный рабочий план перед началом следующего цикла кодинга и интеграции.
