@@ -76,6 +76,23 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertTrue(all(step["status"] in {"fail", "skip"} for step in output.decision_trace["steps"]))
         self.assertTrue(all(isinstance(step["reason"], str) and step["reason"] for step in output.decision_trace["steps"]))
 
+    def test_weak_confidence_is_rejected_by_policy(self) -> None:
+        payload = _base_payload(confidence_hint=0.30, reject_score=20.0)
+
+        output = decide(payload)
+
+        self.assertEqual(output.decision, Decision.REJECT)
+        self.assertEqual(output.reject_reason, "confidence_too_low")
+        self.assertEqual(output.decision_trace["steps"][0]["status"], "fail")
+
+    def test_direction_conflict_reject_when_gap_small_and_confidence_low(self) -> None:
+        payload = _base_payload(long_score=51.0, short_score=49.0, confidence_hint=0.45, reject_score=20.0)
+
+        output = decide(payload)
+
+        self.assertEqual(output.decision, Decision.REJECT)
+        self.assertEqual(output.reject_reason, "direction_conflict")
+
     def test_degraded_input_remains_usable_with_penalty(self) -> None:
         payload = _base_payload(input_quality_status="degraded", confidence_hint=0.8)
 
@@ -137,6 +154,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
             output.decision_trace["selection"]["selected_candidate_id"],
             output.selected_candidate_id,
         )
+        self.assertIn("score_gap", output.decision_trace["steps"][1]["metrics"])
+        self.assertIn("width_to_atr", output.decision_trace["steps"][2]["metrics"])
 
     def test_grid_scoring_ranking_is_deterministic_against_fixture(self) -> None:
         fixture = json.loads(Path("Maffi/examples/grid_candidates_scored.json").read_text(encoding="utf-8"))
