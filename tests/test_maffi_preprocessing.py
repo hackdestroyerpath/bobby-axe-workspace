@@ -70,6 +70,8 @@ class MaffiPreprocessingTests(unittest.TestCase):
         self.assertEqual(len(result.features.ohlcv_by_timeframe["15m"]), 2)
         self.assertTrue(result.feature_extraction.degradation.sparse_input)
         self.assertIn("sparse_input", result.feature_extraction.degradation.triggered_flags)
+        self.assertGreaterEqual(result.features.market_snapshot.trade_count_1m, 1)
+        self.assertIsNotNone(result.features.market_snapshot.vwap_1m)
 
     def test_feature_extraction_builds_entry_candidates_and_quality(self) -> None:
         result = extract_preprocessing_features(trending_ticks())
@@ -84,6 +86,35 @@ class MaffiPreprocessingTests(unittest.TestCase):
         volatility_regime = classify_volatility_regime(result.features.realized_vol)
         self.assertEqual(volatility_regime.label, result.features.volatility_regime.label)
         self.assertIsNotNone(result.feature_extraction.degradation.thresholds.max_gap_ratio)
+        self.assertGreater(result.features.market_snapshot.last_price, 0)
+        self.assertGreater(result.features.market_snapshot.volume_1m, 0)
+        self.assertGreater(result.features.market_snapshot.notional_5m, 0)
+        self.assertIsNotNone(result.features.price_structure.open_1m)
+        self.assertIsNotNone(result.features.price_structure.high_5m)
+        self.assertIsNotNone(result.features.price_structure.local_high_15m)
+        self.assertGreaterEqual(result.features.price_structure.range_width_1m, 0)
+        self.assertIsNotNone(result.features.volatility.atr_like_1m)
+        self.assertIsNotNone(result.features.volatility.atr_like_5m)
+        self.assertEqual(result.features.volatility.volatility_regime_label, result.features.volatility_regime.label)
+        self.assertIsNotNone(result.features.volatility.volatility_stability_score)
+        self.assertGreaterEqual(result.features.order_flow.buy_volume_1m, 0)
+        self.assertGreaterEqual(result.features.order_flow.sell_volume_5m, 0)
+        self.assertIn(result.features.order_flow.dominant_side, {"buyers", "sellers"})
+        self.assertGreaterEqual(result.features.order_flow.order_flow_confidence, 0)
+        self.assertIn(result.features.regime.market_regime_label, {"trend", "ranging", "noisy"})
+        self.assertGreaterEqual(result.features.regime.regime_confidence, 0)
+        self.assertGreaterEqual(result.features.regime.trend_strength_score, 0)
+        self.assertLessEqual(result.features.support_resistance_features.support_zone_low, result.features.support_resistance_features.support_zone_high)
+        self.assertLessEqual(result.features.support_resistance_features.resistance_zone_low, result.features.support_resistance_features.resistance_zone_high)
+        self.assertGreaterEqual(result.features.support_resistance_features.level_respect_score, 0)
+        self.assertGreaterEqual(result.features.quality_trust.coverage_ratio, 0)
+        self.assertGreaterEqual(result.features.quality_trust.liquidity_quality_score, 0)
+        self.assertGreaterEqual(result.features.quality_trust.payload_confidence, 0)
+
+    def test_sparse_input_quality_trust_degrades_confidence(self) -> None:
+        result = extract_preprocessing_features(sparse_ticks())
+        self.assertLess(result.features.quality_trust.payload_confidence, 1.0)
+        self.assertIn("sparse_input", result.features.quality_trust.degradation_flags)
 
 
 if __name__ == "__main__":
