@@ -26,6 +26,37 @@
 - rationale[]
 - decision_trace {}
 
+## Output envelope (formatter contract)
+Formatter MUST serialize `MaffiOutput` with stable top-level keys in this exact order:
+1. `schema_version`
+2. `generated_at_utc`
+3. `symbol`
+4. `decision`
+5. `confidence`
+6. `selected_entry`
+7. `tp`
+8. `sl`
+9. `input_quality_status`
+10. `reject_reason`
+11. `rationale`
+12. `decision_trace`
+
+Required fields for every output envelope:
+- `schema_version`
+- `generated_at_utc`
+- `symbol`
+- `decision`
+- `confidence`
+- `input_quality_status`
+- `rationale`
+- `decision_trace`
+
+Normalization requirements for downstream:
+- `rationale` is serialized as `list[str]` with trimmed, non-empty entries.
+- `decision_trace` is serialized as a JSON-friendly object with recursively normalized values.
+- Enum values inside trace are emitted as primitive `.value` strings.
+- Mapping keys inside trace are stringified and sorted to preserve deterministic shape.
+
 ## Reject policy (hard fail vs soft degrade)
 Hard reject:
 1. Structural/semantic validation error.
