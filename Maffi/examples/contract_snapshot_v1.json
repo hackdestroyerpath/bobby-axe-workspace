@@ -1,0 +1,189 @@
+{
+  "schema_version_assertion": "maffi-v1",
+  "payload": {
+    "schema_version": "maffi-v1",
+    "symbol": "BTCUSDC",
+    "generated_at_utc": "2026-03-24T12:00:00Z",
+    "source": "Data_collector",
+    "input_quality_status": "ok",
+    "market_regime": "trend",
+    "volatility_regime": "normal",
+    "dominant_side": "buyers",
+    "long_score": 72.0,
+    "short_score": 41.0,
+    "reject_score": 12.0,
+    "confidence_hint": 0.75,
+    "entry_candidates": [
+      87210.0,
+      87240.0,
+      87290.0
+    ],
+    "support_level": 86980.0,
+    "resistance_level": 87640.0,
+    "last_price": 87260.0,
+    "atr": 120.0,
+    "context": {
+      "fixture": true,
+      "snapshot": "contract-v1"
+    }
+  },
+  "output": {
+    "schema_version": "maffi-v1",
+    "generated_at_utc": "2026-03-24T12:00:05Z",
+    "symbol": "BTCUSDC",
+    "decision": "long",
+    "confidence": 0.75,
+    "selected_entry": 87290.0,
+    "tp": 87470.0,
+    "sl": 87170.0,
+    "input_quality_status": "ok",
+    "reject_reason": null,
+    "rationale": [
+      "decision=long",
+      "long_score=72.00",
+      "short_score=41.00",
+      "quality=ok",
+      "direction_reason=score_dominance; trend_following"
+    ],
+    "grid_upper_price": 87640.0,
+    "grid_lower_price": 86980.0,
+    "grid_count": 12,
+    "grid_step": 55.0,
+    "efficiency_score": 0.8129437229437231,
+    "selected_candidate_id": "grid_3",
+    "validation_summary": {
+      "counts": {
+        "failed": 0,
+        "passed": 38,
+        "skipped": 0,
+        "total_checks": 38,
+        "warnings": 0
+      },
+      "degrade": {
+        "degrade_score": 0.0,
+        "is_degraded": false,
+        "policy": "hard_reject_bad_soft_penalty_degraded",
+        "sources": []
+      },
+      "errors": [],
+      "top_reasons": [],
+      "warnings": []
+    },
+    "decision_summary": {
+      "direction": "long",
+      "selected_candidate_id": "grid_3",
+      "tp_sl_logic_digest": {
+        "constraints": [
+          "atr=120.000000"
+        ],
+        "mode": "mixed",
+        "notes": [
+          "TP/SL computed from ATR and S/R corridor."
+        ],
+        "rr_estimate": 1.5,
+        "sl_basis": "support_resistance_with_atr_buffer",
+        "tp_basis": "minmax_structure_with_atr_extension"
+      }
+    },
+    "decision_trace": {
+      "selection": {
+        "efficiency_score": 0.8129437229437231,
+        "grid_count": 12,
+        "grid_lower_price": 86980.0,
+        "grid_step": 55.0,
+        "grid_upper_price": 87640.0,
+        "selected_candidate_id": "grid_3"
+      },
+      "steps": [
+        {
+          "inputs": {},
+          "metrics": {
+            "reject_score": 12.0
+          },
+          "name": "gate",
+          "outputs": {},
+          "reason": "payload passed validation and policy gates",
+          "status": "pass",
+          "warnings": []
+        },
+        {
+          "inputs": {},
+          "metrics": {
+            "dominant_side": "buyers",
+            "long_score": 72.0,
+            "market_regime": "trend",
+            "score_gap": 31.0,
+            "short_score": 41.0
+          },
+          "name": "direction",
+          "outputs": {
+            "direction": "long"
+          },
+          "reason": "score_dominance; trend_following",
+          "status": "pass",
+          "warnings": []
+        },
+        {
+          "inputs": {},
+          "metrics": {
+            "last_price": 87260.0,
+            "resistance_level": 87640.0,
+            "support_level": 86980.0,
+            "width": 660.0,
+            "width_to_atr": 5.5
+          },
+          "name": "range",
+          "outputs": {
+            "grid_lower_price": 86980.0,
+            "grid_upper_price": 87640.0,
+            "selected_entry": 87290.0
+          },
+          "reason": "range_aligned_with_direction",
+          "status": "pass",
+          "warnings": []
+        },
+        {
+          "inputs": {},
+          "metrics": {
+            "efficiency_score": 0.8129437229437231,
+            "selected_candidates": 1
+          },
+          "name": "grid_count",
+          "outputs": {
+            "grid_count": 12,
+            "grid_lower_price": 86980.0,
+            "grid_step": 55.0,
+            "grid_upper_price": 87640.0,
+            "selected_candidate_id": "grid_3"
+          },
+          "reason": "entry candidate resolved",
+          "status": "pass",
+          "warnings": []
+        },
+        {
+          "inputs": {},
+          "metrics": {},
+          "name": "tp_sl",
+          "outputs": {
+            "sl": 87170.0,
+            "tp": 87470.0
+          },
+          "reason": "tp/sl computed",
+          "status": "pass",
+          "warnings": []
+        },
+        {
+          "inputs": {},
+          "metrics": {
+            "confidence": 0.75
+          },
+          "name": "confidence",
+          "outputs": {},
+          "reason": "confidence finalized",
+          "status": "pass",
+          "warnings": []
+        }
+      ]
+    }
+  }
+}

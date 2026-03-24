@@ -29,7 +29,7 @@ class MaffiOrchestrationBridgeTests(unittest.TestCase):
         payload = payload_dict_from_symbol_object(symbol_object)
         output = decide(payload)
 
-        self.assertEqual(payload["schema_version"], "maffi-v0.1")
+        self.assertEqual(payload["schema_version"], "maffi-v1")
         self.assertEqual(payload["symbol"], "BTCUSDC")
         self.assertEqual(payload["input_quality_status"], QualityStatus.OK.value)
         self.assertGreater(payload["long_score"], payload["short_score"])

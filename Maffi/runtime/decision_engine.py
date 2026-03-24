@@ -276,7 +276,7 @@ def _reject_output(
         selected_candidate_id=selected_candidate_id,
     )
     return MaffiOutput(
-        schema_version=str(payload.get("schema_version", "maffi-v0.1")),
+        schema_version=str(payload.get("schema_version", "maffi-v1")),
         generated_at_utc=generated_at,
         symbol=str(payload.get("symbol", "UNKNOWN")),
         decision=Decision.REJECT,
