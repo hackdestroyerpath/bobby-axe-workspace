@@ -66,13 +66,7 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         first, second = deterministic_replay(copy.deepcopy(payload))
 
-        self.assertEqual(first.symbol, second.symbol)
-        self.assertEqual(first.decision, second.decision)
-        self.assertEqual(first.selected_entry, second.selected_entry)
-        self.assertEqual(first.tp, second.tp)
-        self.assertEqual(first.sl, second.sl)
-        self.assertEqual(first.input_quality_status, second.input_quality_status)
-        self.assertEqual(first.reject_reason, second.reject_reason)
+        self.assertEqual(first, second)
 
 
 def _base_payload(**overrides: object) -> dict[str, object]:

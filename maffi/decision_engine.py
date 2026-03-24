@@ -1,27 +1,49 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Callable
 
 from .enums import Decision, QualityStatus
 from .models import MaffiOutput, now_utc_iso
 from .validator import validate_payload
 
 
-def decide(payload: dict[str, Any]) -> MaffiOutput:
+def decide(
+    payload: dict[str, Any],
+    *,
+    generated_at_override: str | None = None,
+    clock: Callable[[], str] | None = None,
+) -> MaffiOutput:
+    generated_at = generated_at_override if generated_at_override is not None else (clock or now_utc_iso)()
+
     validation = validate_payload(payload)
     if not validation.is_valid:
-        return _reject_output(payload, "validation_failed", [f"{issue.field}: {issue.message}" for issue in validation.errors])
+        return _reject_output(
+            payload,
+            "validation_failed",
+            [f"{issue.field}: {issue.message}" for issue in validation.errors],
+            generated_at=generated_at,
+        )
 
     if payload["input_quality_status"] == QualityStatus.BAD.value:
-        return _reject_output(payload, "input_quality_bad", ["Input data quality is BAD; hard reject policy applied."])
+        return _reject_output(
+            payload,
+            "input_quality_bad",
+            ["Input data quality is BAD; hard reject policy applied."],
+            generated_at=generated_at,
+        )
 
     long_score = float(payload["long_score"])
     short_score = float(payload["short_score"])
     reject_score = float(payload["reject_score"])
 
     if reject_score >= 60:
-        return _reject_output(payload, "reject_score_high", [f"reject_score={reject_score:.2f} >= 60.00"])
+        return _reject_output(
+            payload,
+            "reject_score_high",
+            [f"reject_score={reject_score:.2f} >= 60.00"],
+            generated_at=generated_at,
+        )
 
     quality_penalty = 0.20 if payload["input_quality_status"] == QualityStatus.DEGRADED.value else 0.0
     confidence = max(0.0, min(1.0, float(payload["confidence_hint"]) - quality_penalty))
@@ -54,7 +76,7 @@ def decide(payload: dict[str, Any]) -> MaffiOutput:
     }
     return MaffiOutput(
         schema_version=str(payload["schema_version"]),
-        generated_at_utc=now_utc_iso(),
+        generated_at_utc=generated_at,
         symbol=str(payload["symbol"]),
         decision=decision,
         confidence=confidence,
@@ -87,10 +109,10 @@ def _tp_sl(entry: float, atr: float, decision: Decision, support: float, resista
     return tp, sl
 
 
-def _reject_output(payload: dict[str, Any], reason: str, rationale: list[str]) -> MaffiOutput:
+def _reject_output(payload: dict[str, Any], reason: str, rationale: list[str], *, generated_at: str) -> MaffiOutput:
     return MaffiOutput(
         schema_version=str(payload.get("schema_version", "maffi-v0.1")),
-        generated_at_utc=now_utc_iso(),
+        generated_at_utc=generated_at,
         symbol=str(payload.get("symbol", "UNKNOWN")),
         decision=Decision.REJECT,
         confidence=0.0,
