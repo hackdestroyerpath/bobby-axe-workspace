@@ -113,6 +113,18 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertEqual(first, second)
 
+    def test_deterministic_replay_100_runs_identical(self) -> None:
+        payload = _base_payload()
+        identical_runs = 0
+        total_runs = 100
+
+        for _ in range(total_runs):
+            first, second = deterministic_replay(copy.deepcopy(payload))
+            if first == second and first.decision_trace == second.decision_trace:
+                identical_runs += 1
+
+        self.assertEqual(identical_runs, total_runs)
+
     def test_efficiency_score_floor_from_canonical_payload_fixture(self) -> None:
         payload = json.loads(Path("Maffi/payload_example_ok.json").read_text(encoding="utf-8"))
 
@@ -139,6 +151,25 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertEqual(first_ranked, fixture["expected_ranked_candidate_ids"])
         self.assertEqual(first.selected.candidate_id if first.selected else None, fixture["expected_selected_candidate_id"])
         self.assertGreaterEqual(first.selected.efficiency_score if first.selected else 0.0, 0.60)
+
+    def test_negative_batch_correct_reject_ratio_at_least_95_percent(self) -> None:
+        negative_cases: list[tuple[dict[str, object], str]] = []
+
+        for _ in range(8):
+            negative_cases.append((_base_payload(input_quality_status="bad", reject_score=35.0), "input_quality_bad"))
+        for _ in range(8):
+            negative_cases.append((_base_payload(market_regime="chaotic", reject_score=65.0), "reject_score_high"))
+        for _ in range(4):
+            negative_cases.append((_base_payload(atr=0.0), "validation_failed"))
+
+        correct_rejects = 0
+        for payload, expected_reason in negative_cases:
+            output = decide(payload)
+            if output.decision == Decision.REJECT and output.reject_reason == expected_reason:
+                correct_rejects += 1
+
+        ratio = correct_rejects / len(negative_cases)
+        self.assertGreaterEqual(ratio, 0.95)
 
     def _assert_steps_structure_and_order(self, steps: list[dict[str, object]]) -> None:
         self.assertEqual(len(steps), 6)
