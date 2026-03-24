@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from maffi.preprocessing import Tick
+from Maffi.runtime.preprocessing import Tick
 
 
 def trending_ticks() -> list[Tick]:

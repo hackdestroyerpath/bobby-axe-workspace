@@ -3,8 +3,8 @@ from __future__ import annotations
 import copy
 import unittest
 
-from maffi import decide, deterministic_replay, validate_payload
-from maffi.enums import Decision
+from Maffi.runtime import decide, deterministic_replay, validate_payload
+from Maffi.runtime.enums import Decision
 
 
 class MaffiDecisionEngineTests(unittest.TestCase):

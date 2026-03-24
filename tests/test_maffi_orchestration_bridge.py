@@ -4,14 +4,14 @@ import unittest
 
 from TRADING_ALGOS.ben_kim_packaging import assemble_symbol_batch, project_machine_response_to_symbol_object
 from TRADING_ALGOS.machine_registry import MACHINE_REGISTRY
-from maffi import decide
-from maffi.bridge import (
+from Maffi.runtime import decide
+from Maffi.runtime.bridge import (
     BRIDGE_MAPPING_CONTRACT,
     batch_to_maffi_payload,
     payload_dict_from_batch,
     payload_dict_from_symbol_object,
 )
-from maffi.enums import Decision, QualityStatus
+from Maffi.runtime.enums import Decision, QualityStatus
 
 
 class MaffiOrchestrationBridgeTests(unittest.TestCase):

@@ -16,7 +16,7 @@
 - Deterministic replay mode: both replay runs inject the same fixed `generated_at_utc`
   (taken from payload when present, otherwise fallback constant), so full `MaffiOutput`
   object equality is stable across runs (including `generated_at_utc` and `decision_trace`).
-- **New:** payload builder (`maffi.payload_builder`) wired to `new_collector` tick shape and `TRADING_ALGOS/common` normalization + candle feature engine.
+- **New:** payload builder (`Maffi/runtime/payload_builder.py`) wired to `new_collector` tick shape and `TRADING_ALGOS/common` normalization + candle feature engine.
 - **New:** explicit degradation policy with machine-readable trace reasons:
   - empty window,
   - heavy gaps,
@@ -32,3 +32,4 @@
 ## Risks
 - Regime/scoring calibration is heuristic and should be re-tuned on live distributions.
 - Full runtime orchestration path (Ben_Kim aggregate -> Maffi builder -> Maffi decide) is not yet wired by default entrypoint.
+ntrypoint.

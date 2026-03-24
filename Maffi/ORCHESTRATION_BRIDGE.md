@@ -63,7 +63,7 @@ Bridge строит `support/resistance/entry_candidates` из:
 - `entry_candidates` = `[last_price-atr, last_price, last_price+atr]` с зажимом в коридор support/resistance
 
 ## Batch semantics
-- Для batch bridge агрегирует все объекты в один payload для `maffi.decide`.
+- Для batch bridge агрегирует все объекты в один payload для `Maffi.runtime.decide`.
 - `generated_at_utc` берется как максимум `generated_at` среди объектов.
 - `source` для batch фиксируется как `Ben_Kim_orchestration`.
 - Trace bridge пишется в `context.bridge`:

@@ -6,8 +6,8 @@ import unittest
 
 from TRADING_ALGOS.common.tick_normalizer import normalize_ticks
 from TRADING_ALGOS.common.tick_to_features_engine import build_tick_feature_candles
-from maffi.enums import QualityStatus
-from maffi.payload_builder import build_maffi_payload
+from Maffi.runtime.enums import QualityStatus
+from Maffi.runtime.payload_builder import build_maffi_payload
 
 
 class MaffiPayloadBuilderIntegrationTests(unittest.TestCase):

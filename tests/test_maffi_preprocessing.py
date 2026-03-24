@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from maffi.preprocessing import (
+from Maffi.runtime.preprocessing import (
     aggregate_ohlcv,
     classify_market_regime,
     classify_volatility_regime,

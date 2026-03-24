@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from maffi import decide, maffi_output_to_dict, maffi_output_to_json
+from Maffi.runtime import decide, maffi_output_to_dict, maffi_output_to_json
 
 
 class MaffiFormatterTests(unittest.TestCase):
