@@ -1,138 +1,225 @@
-# MAFFI — PROJECT ANALYSIS + TODO (на утверждение)
+# MAFFI APPROVED INSTRUCTION
 
-Дата анализа: **2026-03-24**  
-Режим: **статический обзор репозитория (без запуска кода)**
-
----
-
-## 1) Как я изучал проект (план ревью)
-
-1. Проверил структуру репозитория и ключевые контуры (`TRADING_ALGOS`, `new_collector`, `tests`, корневые документы).
-2. Сверил архитектурные документы и текущий operational-план по Phase 2/3.
-3. Просмотрел runtime-реализацию машин (`machine_registry.py`, `runtime_contract.py`, `machines.py`, `strategy_cores.py`).
-4. Проверил интеграционный и контрактный тестовый слой (`tests/test_phase3_integration.py` и смежные тесты).
-5. Проверил packaging/storage handoff слой (`ben_kim_packaging.py`).
-6. Зафиксировал факты: что уже готово, что частично готово, что отсутствует в контуре `Maffi`.
-7. Сформировал:
-   - основной (базовый) to-do list;
-   - модифицированный to-do list (с приоритизацией и checkpoint-логикой).
+Статус: утвержденная инструкция по завершению алгоритма Maffi.
+Дата: 2026-03-24
 
 ---
 
-## 2) Что подтверждено по проекту (факты)
+# Цель
 
-### 2.1. Что уже есть в репозитории
-- Сильный contract-first контур для `TRADING_ALGOS`:
-  - единый runtime pipeline;
-  - frozen registry на 12 машин;
-  - унифицированные status semantics (`ready/partial/error`);
-  - shared normalizer + feature engine;
-  - strategy family cores;
-  - integration/unit test-слой;
-  - начат/реализован packaging layer для symbol-scoped objects (`Ben_Kim`).
+Довести Maffi до состояния, в котором агент по одному тикеру и подготовленному payload стабильно возвращает:
+- `direction` (`Long` / `Short` / `Reject`)
+- `grid_upper_price`
+- `grid_lower_price`
+- `grid_count`
+- `tp`
+- `sl`
+- `confidence`
+- `rationale`
+- `decision_trace`
 
-### 2.2. Что важно для `Maffi`
-- Папка `Maffi/` содержит только этот TODO-документ.
-- Отдельного runtime/validator/scoring/candidate/TP-SL кода для `Maffi` в репозитории пока нет.
-- Значит `Maffi` нужно строить как новый контур, но на уже существующих дисциплинах проекта:
-  - contract-first;
-  - traceability;
-  - deterministic behavior;
-  - честные `Reject/Partial/Error` причины.
-
-### 2.3. Основной риск
-- Если начать с «логики Long/Short» без схемы входа, валидации и воспроизводимого payload, получится хрупкая эвристика.
-- Правильная последовательность: **schema → validator → payload builder → decision/scoring → selection/TP-SL → trace/tests**.
+Требования к поведению:
+- deterministic
+- contract-first
+- traceable
+- пригодное для orchestration handoff
 
 ---
 
-## 3) Основной TO-DO list (базовый)
+# PHASE 1 — Finish Core Runtime and Decision Quality
 
-## A. Contract & модели
-1. Зафиксировать `MaffiInputPayload` и `MaffiOutput` (typed, versioned).
-2. Ввести enum-слой (`Decision`, `QualityStatus`, `MarketRegime`, `DominantSide`, `VolatilityRegime`).
-3. Добавить совместимый формат traceability (`schema_version`, `generated_at_utc`, `input_quality_status`, `reject_reason`).
+## Цель Phase 1
 
-## B. Валидация
-4. Реализовать structural validation обязательных блоков payload.
-5. Реализовать semantic validation диапазонов и инвариантов (`confidence 0..1`, score 0..100, price relations).
-6. Реализовать cross-field validation (consistency между quality/order-flow/candidates/market snapshot).
-7. Ввести `ValidationResult` с `is_valid`, `errors`, `warnings`, `severity`.
+Завершить ядро Maffi так, чтобы оно не просто принимало валидный payload, а действительно строило торгуемое решение по сетке с прозрачной логикой выбора направления, диапазона, количества сеток, TP и SL.
 
-## C. Preprocessing layer
-8. Спроектировать модуль очистки тиков (`duplicates`, `bad ticks`, gap metrics).
-9. Реализовать агрегации (1m/5m/15m OHLC + volume stats + local range).
-10. Реализовать volatility features.
-11. Реализовать order-flow features.
-12. Реализовать trend-structure features.
-13. Реализовать market regime classifier (explainable, score-based).
-14. Реализовать support/resistance block.
-15. Реализовать grid candidates generator (1..N candidates + quality metrics).
-16. Реализовать payload builder с поддержкой `ok/degraded/bad` входа.
+Текущий каркас уже включает:
+- validator
+- preprocessing
+- payload builder
+- decision engine
+- bridge
+- formatter
+- replay
 
-## D. Decision layer
-17. Зафиксировать reject policy до выбора направления.
-18. Реализовать composite scoring (`long_score`, `short_score`, `reject_score`).
-19. Реализовать confidence policy с штрафами за качество данных/нестабильность.
-20. Реализовать candidate selector (не выбирать «из воздуха», только из входного списка).
-21. Реализовать TP/SL policy (направление + волатильность + уровни).
-22. Собрать итоговый `decision_engine`.
-
-## E. Explainability, replay, tests
-23. Добавить rationale generator.
-24. Добавить machine-readable decision trace.
-25. Добавить deterministic replay (одинаковый payload => одинаковый output).
-26. Добавить unit tests: validator/scoring/candidate/tp_sl.
-27. Добавить e2e tests: good long, good short, bad data reject, chaotic reject, degraded usable.
+Phase 1 должна довести это до уровня полноценного рабочего core-algorithm.
 
 ---
 
-## 4) Модифицированный TO-DO list (рекомендованный к исполнению сейчас)
+## Что должно быть готово по завершении Phase 1
 
-Ниже — тот же список, но адаптированный под текущую зрелость репозитория и управление риском.
-
-## Sprint 0 — Decision Gate (1 короткий цикл)
-1. Утвердить минимальный входной контракт `Maffi v0.1` (не весь production payload).
-2. Утвердить формулу `Reject`-критериев (hard fail vs soft degrade).
-3. Утвердить список обязательных полей для первого боевого запуска.
-
-**Artifact:** `Maffi/CONTRACT_V0_1.md` + `Maffi/payload_example_ok.json` + `Maffi/payload_example_reject.json`.
-
-## Sprint 1 — Skeleton MVP (высший приоритет)
-4. Создать каркас модулей `maffi/` (enums/models/validator/decision_engine/formatter).
-5. Реализовать validator + минимальный `decision_engine` (`Reject | Long | Short`) без сложной математики.
-6. Реализовать базовый candidate selection и TP/SL с детерминированными правилами.
-
-**Artifact:** первый end-to-end проход на фиксированном payload fixture.
-
-## Sprint 2 — Feature depth (средний приоритет)
-7. Довести preprocessing-модули: volatility/order_flow/trend/regime/support-resistance/grid candidates.
-8. Включить composite scoring и confidence adjustments.
-9. Подключить decision trace и explainability-блок.
-
-**Artifact:** `Maffi/PHASE_2_REPORT.md` с матрицей quality и примерами решений.
-
-## Sprint 3 — Hardening (обязательный перед production)
-10. Добавить deterministic replay и regression fixtures.
-11. Закрыть unit+e2e тесты по минимальному набору сценариев.
-12. Ввести readiness-статусы для релиза: `ready`, `partial`, `blocked`.
-
-**Artifact:** `Maffi/READINESS_MATRIX.md` + стабильный test suite.
+По одному тикеру система должна уметь:
+1. принять входной payload;
+2. проверить hard/soft data quality;
+3. классифицировать режим рынка;
+4. определить directional bias;
+5. построить кандидаты сетки;
+6. выбрать лучший кандидат;
+7. вычислить `tp/sl`;
+8. вернуть решение в стабильном формате;
+9. объяснить решение через rationale и trace.
 
 ---
 
-## 5) Приоритеты (что делать прямо сейчас)
+## Подзадачи Phase 1
 
-**P0 (сразу):** пункты 1–6 из модифицированного списка.  
-**P1 (следом):** пункты 7–9.  
-**P2 (перед релизом):** пункты 10–12.
+### 1. Зафиксировать единый runtime contract v1
+- убрать расхождения между `TODO`, `CONTRACT_V0_1` и runtime-моделями;
+- разделить поля на required / optional / derived / trace-only.
+
+Артефакты:
+- `CONTRACT_V1.md`
+- при необходимости `contract_v1.json`
+
+### 2. Довести validator до production-порогов
+Validator должен проверять:
+- диапазоны чисел;
+- корректность enum-значений;
+- `support_level < resistance_level`;
+- непустой `entry_candidates`;
+- `confidence_hint` в диапазоне `0..1`;
+- `long_score / short_score / reject_score` в диапазоне `0..100`;
+- `atr > 0`;
+- `last_price > 0`;
+- cross-field consistency.
+
+Также добавить:
+- severity model (`error`, `warning`, `degrade`)
+- machine-readable validation trace
+- validation summary block
+
+### 3. Усилить preprocessing / feature extraction
+Должны стабильно извлекаться:
+- OHLCV для `1m`, `5m`, `15m`
+- realized volatility
+- price range
+- buy/sell volume split
+- imbalance
+- trend structure
+- support/resistance
+- market regime candidates
+- volatility regime
+- entry candidates
+
+Улучшить:
+- устойчивость к sparse input
+- устойчивость к noisy input
+- явную обработку gaps
+- degradation trace
+
+### 4. Пересобрать decision engine вокруг grid-логики
+Decision engine должен решать:
+1. пригоден ли рынок для сетки;
+2. какой directional bias доминирует;
+3. какой диапазон сетки использовать;
+4. сколько уровней сетки оптимально;
+5. где заканчивается идея (`tp`);
+6. где ломается идея (`sl`).
+
+Внутренние блоки:
+- reject gate
+- direction resolver
+- range resolver
+- grid count resolver
+- tp/sl resolver
+- confidence adjuster
+- rationale synthesizer
+
+### 5. Добавить grid candidate scoring
+Для каждого кандидата должны быть:
+- `grid_lower_price`
+- `grid_upper_price`
+- `grid_width`
+- `grid_count`
+- `grid_step`
+- `efficiency_score`
+- `candidate_notes`
+
+Подскоринги:
+- range utilization
+- oscillation quality
+- step quality
+- stability
+- boundary respect
+
+### 6. Формализовать TP/SL policy
+Для Long:
+- `tp` в зоне логичного завершения движения / сопротивления;
+- `sl` за support / структурным сломом.
+
+Для Short:
+- `tp` в зоне поддержки / нижней цели;
+- `sl` за resistance / структурным сломом.
+
+Описать:
+- базовые формулы
+- ATR-based buffers
+- ограничения против слишком близкого TP/SL
+- reject при бессмысленной геометрии
+
+### 7. Усилить formatter и traceability
+Добавить в финальный output:
+- `grid_upper_price`
+- `grid_lower_price`
+- `grid_count`
+- `grid_step`
+- `efficiency_score`
+- `selected_candidate_id`
+- `validation_summary`
+- `decision_summary`
+
+### 8. Довести тесты до acceptance coverage
+Сценарии:
+- healthy long trend
+- healthy short trend
+- balanced range
+- chaotic reject
+- degraded but usable
+- bad input hard reject
+- conflicting signal set
+- weak confidence reject
+- malformed payload
+- bridge e2e
 
 ---
 
-## 6) Сигнал готовности на утверждение
+## Deliverables Phase 1
+- `CONTRACT_V1.md`
+- runtime implementation
+- updated tests
+- payload examples: ok / degraded / reject
+- decision trace examples
+- `PHASE_1_ACCEPTANCE.md`
 
-Этот документ подготовлен как обновлённый `to-do list` после детального анализа текущего состояния проекта.
+## Acceptance criteria Phase 1
+Phase 1 завершена, если:
+1. один канонический контракт утвержден;
+2. validator проверяет структуру и семантику;
+3. preprocessing стабильно дает usable features;
+4. decision engine выбирает сторону и геометрию сетки;
+5. TP/SL воспроизводимы;
+6. grid candidate scoring работает;
+7. formatter стабилен;
+8. есть regression tests;
+9. orchestration bridge может отдать payload в runtime без ручного вмешательства.
 
-Если утверждаете, следующий шаг для исполнителя:
-- взять **модифицированный TO-DO list** как канонический;
-- открыть Sprint 0 и зафиксировать артефакты контракта `v0.1`.
+---
+
+# PHASE 2 — Заголовки
+- Canonical live entrypoint for Maffi
+- Ben_Kim -> Maffi mapping finalization
+- Orchestration bridge hardening
+- Live payload transport contract
+- Error propagation and retry policy
+- Runtime statuses: ready / partial / blocked
+- E2E orchestration integration
+
+---
+
+# PHASE 3 — Заголовки
+- Deterministic replay pack
+- Historical regression suite
+- Threshold calibration by ticker class
+- Confidence / reject tuning
+- Observability and audit trail
+- Release checklist and go-live criteria
+- Maintenance cadence
