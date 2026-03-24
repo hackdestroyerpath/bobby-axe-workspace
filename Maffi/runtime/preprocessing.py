@@ -7,8 +7,11 @@ from statistics import pstdev
 from .models import (
     Candle,
     EntryCandidate,
+    FeatureExtractionResult,
     MarketRegime,
     MarketRegimeScores,
+    PreprocessingDegradation,
+    PreprocessingDegradationThresholds,
     PreprocessingFeatures,
     PreprocessingResult,
     SupportResistance,
@@ -16,6 +19,14 @@ from .models import (
     TrendStructure,
     VolatilityRegime,
 )
+
+MIN_TICK_COUNT = 12
+MAX_GAP_RATIO = 0.35
+MAX_OUTLIER_RATIO = 0.08
+MIN_SIDE_QUALITY_RATIO = 0.22
+GAP_HEAVY_MIN_INTERVAL_SECONDS = 90.0
+OUTLIER_RETURN_ABS_THRESHOLD = 0.02
+OUTLIER_STD_MULTIPLIER = 3.0
 
 
 def sanitize_ticks(ticks: list[Tick]) -> list[Tick]:
@@ -121,15 +132,80 @@ def extract_preprocessing_features(ticks: list[Tick]) -> PreprocessingResult:
         EntryCandidate(price=sr.support + span * 0.8, quality=0.74),
     )
 
+    intervals = [(cur.ts - prev.ts).total_seconds() for prev, cur in zip(clean, clean[1:])]
+    gap_ratio = (
+        sum(1 for interval in intervals if interval >= GAP_HEAVY_MIN_INTERVAL_SECONDS) / len(intervals)
+        if intervals
+        else 0.0
+    )
+
+    outlier_ratio = 0.0
+    if returns:
+        returns_std = pstdev(returns) if len(returns) > 1 else 0.0
+        outlier_count = 0
+        for value in returns:
+            abs_value = abs(value)
+            is_outlier = abs_value >= OUTLIER_RETURN_ABS_THRESHOLD
+            if returns_std > 0:
+                is_outlier = is_outlier or (abs_value / returns_std) >= OUTLIER_STD_MULTIPLIER
+            if is_outlier:
+                outlier_count += 1
+        outlier_ratio = outlier_count / len(returns)
+
+    side_counts = defaultdict(int)
+    for tick in clean:
+        side_counts[tick.side.lower()] += 1
+    buy_count = side_counts.get("buy", 0)
+    sell_count = side_counts.get("sell", 0)
+    total_known_side = buy_count + sell_count
+    side_quality_ratio = min(buy_count, sell_count) / total_known_side if total_known_side else 0.0
+
+    sparse_input = len(clean) < MIN_TICK_COUNT
+    gap_heavy_sequence = gap_ratio > MAX_GAP_RATIO
+    outlier_noise_flags = outlier_ratio > MAX_OUTLIER_RATIO
+    low_side_quality = side_quality_ratio < MIN_SIDE_QUALITY_RATIO
+
+    triggered_flags = tuple(
+        flag
+        for condition, flag in (
+            (sparse_input, "sparse_input"),
+            (gap_heavy_sequence, "gap_heavy_sequence"),
+            (outlier_noise_flags, "outlier_noise_flags"),
+            (low_side_quality, "low_side_quality"),
+        )
+        if condition
+    )
+
+    degradation = PreprocessingDegradation(
+        sparse_input=sparse_input,
+        gap_heavy_sequence=gap_heavy_sequence,
+        outlier_noise_flags=outlier_noise_flags,
+        low_side_quality=low_side_quality,
+        triggered_flags=triggered_flags,
+        tick_count=len(clean),
+        gap_ratio=gap_ratio,
+        outlier_ratio=outlier_ratio,
+        side_quality_ratio=side_quality_ratio,
+        thresholds=PreprocessingDegradationThresholds(
+            min_tick_count=MIN_TICK_COUNT,
+            max_gap_ratio=MAX_GAP_RATIO,
+            max_outlier_ratio=MAX_OUTLIER_RATIO,
+            min_side_quality_ratio=MIN_SIDE_QUALITY_RATIO,
+        ),
+    )
+
     return PreprocessingResult(
         sanitized_ticks=tuple(clean),
-        features=PreprocessingFeatures(
-            tick_count=len(clean),
-            ohlcv_by_timeframe={"1m": candles_1m, "5m": candles_5m, "15m": candles_15m},
-            market_regime=regime,
-            volatility_regime=vol_regime,
-            realized_vol=realized_vol,
-            support_resistance=sr,
-            entry_candidates=entries,
+        feature_extraction=FeatureExtractionResult(
+            features=PreprocessingFeatures(
+                tick_count=len(clean),
+                ohlcv_by_timeframe={"1m": candles_1m, "5m": candles_5m, "15m": candles_15m},
+                market_regime=regime,
+                volatility_regime=vol_regime,
+                realized_vol=realized_vol,
+                support_resistance=sr,
+                entry_candidates=entries,
+            ),
+            degradation=degradation,
         ),
     )

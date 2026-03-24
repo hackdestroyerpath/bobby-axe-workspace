@@ -8,6 +8,8 @@ from TRADING_ALGOS.common.tick_normalizer import normalize_ticks
 from TRADING_ALGOS.common.tick_to_features_engine import build_tick_feature_candles
 from Maffi.runtime.enums import QualityStatus
 from Maffi.runtime.payload_builder import build_maffi_payload
+from Maffi.runtime.preprocessing import extract_preprocessing_features
+from tests.fixtures.maffi_preprocessing_fixtures import sparse_ticks
 
 
 class MaffiPayloadBuilderIntegrationTests(unittest.TestCase):
@@ -88,6 +90,29 @@ class MaffiPayloadBuilderIntegrationTests(unittest.TestCase):
         self.assertGreaterEqual(payload.reject_score, 60)
         reasons = payload.context["payload_builder"]["degradation_reasons"]
         self.assertTrue(any(reason["code"] == "empty_window" for reason in reasons))
+
+    def test_payload_contains_structured_degradation_trace_when_preprocessing_is_provided(self) -> None:
+        normalization = normalize_ticks(
+            self._series(step_seconds=50, count=45),
+            window_from=datetime(2026, 3, 23, 0, 0, tzinfo=timezone.utc),
+            window_to=datetime(2026, 3, 23, 1, 15, tzinfo=timezone.utc),
+            gap_threshold=timedelta(minutes=4),
+        )
+        preprocessing_result = extract_preprocessing_features(sparse_ticks())
+
+        payload = build_maffi_payload(
+            symbol="BTCUSDC",
+            source="Data_collector",
+            window_from=normalization.window_from,
+            window_to=normalization.window_to,
+            normalization_result=normalization,
+            preprocessing_result=preprocessing_result,
+        )
+
+        degradation_trace = payload.context["payload_builder"]["degradation_trace"]
+        self.assertIsInstance(degradation_trace, dict)
+        self.assertTrue(degradation_trace["sparse_input"])
+        self.assertIn("sparse_input", degradation_trace["triggered_flags"])
 
     @staticmethod
     def _series(*, step_seconds: int, count: int) -> list[dict[str, object]]:

@@ -157,6 +157,28 @@ class EntryCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class PreprocessingDegradationThresholds:
+    min_tick_count: int
+    max_gap_ratio: float
+    max_outlier_ratio: float
+    min_side_quality_ratio: float
+
+
+@dataclass(frozen=True, slots=True)
+class PreprocessingDegradation:
+    sparse_input: bool
+    gap_heavy_sequence: bool
+    outlier_noise_flags: bool
+    low_side_quality: bool
+    triggered_flags: tuple[str, ...]
+    tick_count: int
+    gap_ratio: float
+    outlier_ratio: float
+    side_quality_ratio: float
+    thresholds: PreprocessingDegradationThresholds
+
+
+@dataclass(frozen=True, slots=True)
 class PreprocessingFeatures:
     tick_count: int
     ohlcv_by_timeframe: dict[str, tuple[Candle, ...]]
@@ -168,6 +190,16 @@ class PreprocessingFeatures:
 
 
 @dataclass(frozen=True, slots=True)
+class FeatureExtractionResult:
+    features: PreprocessingFeatures
+    degradation: PreprocessingDegradation
+
+
+@dataclass(frozen=True, slots=True)
 class PreprocessingResult:
     sanitized_ticks: tuple[Tick, ...]
-    features: PreprocessingFeatures
+    feature_extraction: FeatureExtractionResult
+
+    @property
+    def features(self) -> PreprocessingFeatures:
+        return self.feature_extraction.features

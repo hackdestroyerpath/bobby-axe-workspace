@@ -65,9 +65,11 @@ class MaffiPreprocessingTests(unittest.TestCase):
         self.assertLessEqual(cleaned[0].ts, cleaned[-1].ts)
 
         sparse = sparse_ticks()
-        features = extract_preprocessing_features(sparse)
-        self.assertEqual(features.features.tick_count, 3)
-        self.assertEqual(len(features.features.ohlcv_by_timeframe["15m"]), 2)
+        result = extract_preprocessing_features(sparse)
+        self.assertEqual(result.features.tick_count, 3)
+        self.assertEqual(len(result.features.ohlcv_by_timeframe["15m"]), 2)
+        self.assertTrue(result.feature_extraction.degradation.sparse_input)
+        self.assertIn("sparse_input", result.feature_extraction.degradation.triggered_flags)
 
     def test_feature_extraction_builds_entry_candidates_and_quality(self) -> None:
         result = extract_preprocessing_features(trending_ticks())
@@ -81,6 +83,7 @@ class MaffiPreprocessingTests(unittest.TestCase):
         self.assertEqual(result.features.market_regime.label, "trend")
         volatility_regime = classify_volatility_regime(result.features.realized_vol)
         self.assertEqual(volatility_regime.label, result.features.volatility_regime.label)
+        self.assertIsNotNone(result.feature_extraction.degradation.thresholds.max_gap_ratio)
 
 
 if __name__ == "__main__":
