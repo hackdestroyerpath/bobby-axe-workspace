@@ -80,6 +80,12 @@
           "name": "gate",
           "status": "pass",
           "reason": "accepted",
+          "reasons": [
+            {
+              "code": "accepted",
+              "priority": 100
+            }
+          ],
           "inputs": {},
           "outputs": {},
           "metrics": {
@@ -91,10 +97,20 @@
           "name": "direction",
           "status": "pass",
           "reason": "resolved",
+          "reasons": [
+            {
+              "code": "final_direction",
+              "priority": 100,
+              "selected": "long"
+            }
+          ],
           "inputs": {},
           "outputs": {},
           "metrics": {
-            "score_gap": 31.0
+            "score_gap": 31.0,
+            "regime_weight": 1.0,
+            "side_bias_contribution": 0.0,
+            "conflict_intensity": 0.0
           },
           "warnings": []
         },
@@ -102,6 +118,12 @@
           "name": "range",
           "status": "pass",
           "reason": "range_scored",
+          "reasons": [
+            {
+              "code": "range_scored",
+              "priority": 100
+            }
+          ],
           "inputs": {},
           "outputs": {},
           "metrics": {
@@ -113,6 +135,12 @@
           "name": "grid_count",
           "status": "pass",
           "reason": "candidate_selected",
+          "reasons": [
+            {
+              "code": "candidate_selected",
+              "priority": 100
+            }
+          ],
           "inputs": {},
           "outputs": {},
           "metrics": {
@@ -124,6 +152,12 @@
           "name": "tp_sl",
           "status": "pass",
           "reason": "tp_sl_computed",
+          "reasons": [
+            {
+              "code": "tp_sl_computed",
+              "priority": 100
+            }
+          ],
           "inputs": {},
           "outputs": {},
           "metrics": {},
@@ -133,6 +167,12 @@
           "name": "confidence",
           "status": "pass",
           "reason": "confidence_adjusted",
+          "reasons": [
+            {
+              "code": "confidence_adjusted",
+              "priority": 100
+            }
+          ],
           "inputs": {},
           "outputs": {},
           "metrics": {
