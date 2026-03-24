@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime
 from typing import Any
 
@@ -13,7 +14,7 @@ from TRADING_ALGOS.common.tick_normalizer import (
 from TRADING_ALGOS.common.tick_to_features_engine import TickToFeaturesResult
 
 from .enums import QualityStatus
-from .models import MaffiPayload
+from .models import MaffiPayload, PreprocessingResult
 
 
 def build_maffi_payload(
@@ -24,6 +25,7 @@ def build_maffi_payload(
     window_to: datetime,
     normalization_result: NormalizationResult,
     feature_result: TickToFeaturesResult | None = None,
+    preprocessing_result: PreprocessingResult | None = None,
 ) -> MaffiPayload:
     reasons: list[dict[str, Any]] = []
 
@@ -75,6 +77,12 @@ def build_maffi_payload(
     if quality == QualityStatus.DEGRADED:
         long_score = 65.0
 
+    degradation_trace: dict[str, Any] | None = None
+    if preprocessing_result is not None:
+        degradation_trace = asdict(preprocessing_result.feature_extraction.degradation)
+        for flag in preprocessing_result.feature_extraction.degradation.triggered_flags:
+            reasons.append({"code": flag, "severity": "degrade"})
+
     return MaffiPayload(
         schema_version="maffi-v1",
         symbol=symbol,
@@ -99,6 +107,7 @@ def build_maffi_payload(
                 "window_to": window_to.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "coverage_ratio": normalization_result.coverage_ratio,
                 "degradation_reasons": reasons,
+                "degradation_trace": degradation_trace,
             }
         },
     )

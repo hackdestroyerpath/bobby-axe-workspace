@@ -150,6 +150,24 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertGreater(result.trace["degrade_score"], 0.0)
         self.assertTrue(any(reason["severity"] == "degrade" for reason in result.trace["reasons"]))
 
+    def test_validator_includes_degradation_trace_from_payload_context(self) -> None:
+        payload = _base_payload(input_quality_status="degraded")
+        payload["context"] = {
+            "payload_builder": {
+                "degradation_trace": {
+                    "triggered_flags": ["gap_heavy_sequence", "low_side_quality"],
+                    "gap_ratio": 0.6,
+                },
+            },
+        }
+
+        result = validate_payload(payload)
+
+        self.assertIn("degradation_flags", result.trace)
+        self.assertIn("gap_heavy_sequence", result.trace["degradation_flags"])
+        self.assertIn("low_side_quality", result.trace["degradation_flags"])
+        self.assertGreaterEqual(result.trace["degrade_score"], 0.7)
+
     def test_deterministic_replay_same_payload_same_output_payload_fields(self) -> None:
         payload = _base_payload()
 

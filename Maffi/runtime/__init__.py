@@ -46,15 +46,28 @@ def validate_payload(payload: dict[str, Any]) -> ValidationResult:
     if "last_price" in payload and "resistance_level" in payload and float(payload["last_price"]) > float(payload["resistance_level"]):
         warnings.append(ValidationIssue(field="last_price", code="range_warning", message="last_price above resistance", severity="warning"))
 
+    context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+    payload_builder_context = context.get("payload_builder") if isinstance(context, dict) else {}
+    degradation_trace = payload_builder_context.get("degradation_trace") if isinstance(payload_builder_context, dict) else None
+
     is_degraded = payload.get("input_quality_status") == QualityStatus.DEGRADED.value
     if is_degraded:
         reasons.append({"code": "input_quality_degraded", "severity": "degrade"})
+    degradation_flags: list[str] = []
+    if isinstance(degradation_trace, dict):
+        flags = degradation_trace.get("triggered_flags")
+        if isinstance(flags, (list, tuple)):
+            degradation_flags = [str(flag) for flag in flags]
+            for flag in degradation_flags:
+                reasons.append({"code": flag, "severity": "degrade"})
 
     total_checks = len(REQUIRED_FIELDS) + 2
     failed = len(errors)
     warning_count = len(warnings)
     passed = total_checks - failed
     degrade_score = 0.5 if is_degraded else 0.0
+    degrade_score += min(len(degradation_flags) * 0.1, 0.4)
+    degrade_score = min(degrade_score, 0.95)
     reasons.extend({"code": issue.code, "field": issue.field, "severity": issue.severity} for issue in (*errors, *warnings))
 
     trace = {
@@ -71,6 +84,8 @@ def validate_payload(payload: dict[str, Any]) -> ValidationResult:
         },
         "is_degraded": is_degraded,
         "degrade_score": degrade_score,
+        "degradation_flags": degradation_flags,
+        "degradation_trace": degradation_trace if isinstance(degradation_trace, dict) else None,
         "reasons": reasons,
     }
     summary = ValidationSummaryObj(counts=ValidationCounts(total_checks=total_checks, passed=passed, failed=failed, warnings=warning_count))
@@ -187,7 +202,16 @@ def decide(payload: dict[str, Any], *, generated_at_override: str | None = None)
             confidence = min(confidence_hint, direction_resolution.certainty)
             if payload["input_quality_status"] == QualityStatus.DEGRADED.value:
                 confidence = max(0.0, confidence - 0.2)
-            step("gate", "pass", "accepted", {"reject_score": float(payload["reject_score"])})
+            step(
+                "gate",
+                "pass",
+                "accepted",
+                {
+                    "reject_score": float(payload["reject_score"]),
+                    "degrade_score": validation.trace["degrade_score"],
+                    "degradation_flags": validation.trace.get("degradation_flags", []),
+                },
+            )
             step(
                 "direction",
                 "pass",
