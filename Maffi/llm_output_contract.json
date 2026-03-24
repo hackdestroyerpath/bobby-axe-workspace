@@ -1,0 +1,14 @@
+{
+  "schema_version": "maffi-llm-v1",
+  "required": [
+    "ticker",
+    "timeframe",
+    "direction",
+    "tp",
+    "sl",
+    "grids",
+    "price_up",
+    "price_down",
+    "conclusion"
+  ]
+}

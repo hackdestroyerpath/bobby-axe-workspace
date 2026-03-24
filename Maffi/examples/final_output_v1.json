@@ -1,0 +1,117 @@
+{
+  "schema_version": "maffi-v1",
+  "generated_at_utc": "2026-03-24T12:00:00Z",
+  "symbol": "BTCUSDC",
+  "decision": "long",
+  "confidence": 0.75,
+  "selected_entry": 87260.0,
+  "tp": 87440.0,
+  "sl": 87140.0,
+  "input_quality_status": "ok",
+  "reject_reason": null,
+  "rationale": [
+    "decision=long"
+  ],
+  "grid_upper_price": 87607.0,
+  "grid_lower_price": 87013.0,
+  "grid_count": 10,
+  "grid_step": 66.0,
+  "efficiency_score": 0.99,
+  "selected_candidate_id": "gc-2",
+  "validation_summary": {
+    "counts": {
+      "total_checks": 20,
+      "passed": 20,
+      "failed": 0,
+      "warnings": 0
+    },
+    "errors": [],
+    "warnings": [],
+    "degrade": {
+      "is_degraded": false,
+      "degrade_score": 0.0
+    },
+    "top_reasons": []
+  },
+  "decision_summary": {
+    "direction": "long",
+    "selected_candidate_id": "gc-2",
+    "tp_sl_logic_digest": {
+      "mode": "mixed",
+      "tp_basis": "atr",
+      "sl_basis": "atr",
+      "rr_estimate": 1.5
+    }
+  },
+  "decision_trace": {
+    "selection": {
+      "selected_candidate_id": "gc-2"
+    },
+    "steps": [
+      {
+        "name": "gate",
+        "status": "pass",
+        "reason": "accepted",
+        "inputs": {},
+        "outputs": {},
+        "metrics": {
+          "reject_score": 12.0
+        },
+        "warnings": []
+      },
+      {
+        "name": "direction",
+        "status": "pass",
+        "reason": "resolved",
+        "inputs": {},
+        "outputs": {},
+        "metrics": {
+          "score_gap": 31.0
+        },
+        "warnings": []
+      },
+      {
+        "name": "range",
+        "status": "pass",
+        "reason": "range_scored",
+        "inputs": {},
+        "outputs": {},
+        "metrics": {
+          "width_to_atr": 5.5
+        },
+        "warnings": []
+      },
+      {
+        "name": "grid_count",
+        "status": "pass",
+        "reason": "candidate_selected",
+        "inputs": {},
+        "outputs": {},
+        "metrics": {
+          "candidate_id": "gc-2"
+        },
+        "warnings": []
+      },
+      {
+        "name": "tp_sl",
+        "status": "pass",
+        "reason": "tp_sl_computed",
+        "inputs": {},
+        "outputs": {},
+        "metrics": {},
+        "warnings": []
+      },
+      {
+        "name": "confidence",
+        "status": "pass",
+        "reason": "confidence_adjusted",
+        "inputs": {},
+        "outputs": {},
+        "metrics": {
+          "confidence": 0.75
+        },
+        "warnings": []
+      }
+    ]
+  }
+}
