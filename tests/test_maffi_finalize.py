@@ -11,6 +11,7 @@ from Maffi.runtime.preprocessing import extract_preprocessing_features
 from Maffi.runtime.prompt_builder import build_prompt
 from Maffi.runtime.enums import QualityStatus
 from Maffi.runtime.models import LLMRawResponse, LLMValidationResult
+from tests.fixtures.loader import load_maffi_llm_flow_fixture
 from tests.fixtures.maffi_preprocessing_fixtures import sparse_ticks
 
 
@@ -34,18 +35,28 @@ class MaffiFinalizeTests(unittest.TestCase):
 
     def test_valid_normalize(self) -> None:
         route = self._route()
-        raw = LLMRawResponse("BTCUSDC", route.model_id, "maffi-prompt-v1", "raw", {
-            "ticker": "BTCUSDC", "timeframe": "1m", "direction": "long", "tp": 102, "sl": 99,
-            "grids": 8, "price_up": 101.5, "price_down": 100.2, "conclusion": "ok"
-        })
-        validation = LLMValidationResult(is_valid=True, normalized_payload=raw.parsed_json, summary={"failed_checks": 0}, trace={"status": "pass"})
+        valid_payload = load_maffi_llm_flow_fixture("llm_raw_valid.json")
+        raw = LLMRawResponse("BTCUSDC", route.model_id, "maffi-prompt-v1", "raw", valid_payload)
+        validation = LLMValidationResult(
+            is_valid=True,
+            normalized_payload=raw.parsed_json,
+            summary={"failed_checks": 0},
+            trace={"status": "pass"},
+        )
         result = finalize_response(validation_result=validation, raw_response=raw, route=route)
         self.assertEqual(result.status, "ok")
         self.assertEqual(result.grids, 8)
 
     def test_nullable_fields_supported(self) -> None:
         route = self._route()
-        raw = LLMRawResponse("BTCUSDC", route.model_id, "maffi-prompt-v1", "raw", None, {"ticker": "BTCUSDC", "timeframe": "1m", "direction": "long"})
+        raw = LLMRawResponse(
+            "BTCUSDC",
+            route.model_id,
+            "maffi-prompt-v1",
+            "raw",
+            None,
+            {"ticker": "BTCUSDC", "timeframe": "1m", "direction": "long"},
+        )
         validation = LLMValidationResult(is_valid=False, errors=({"code": "invalid_range"},), summary={}, trace={})
         fallback = apply_fallback_policy(validation, raw)
         result = finalize_response(validation_result=validation, raw_response=raw, route=route, fallback_result=fallback)
@@ -54,9 +65,19 @@ class MaffiFinalizeTests(unittest.TestCase):
 
     def test_fallback_status(self) -> None:
         route = self._route()
-        raw = LLMRawResponse("BTCUSDC", route.model_id, "maffi-prompt-v1", "raw", None, {"ticker": "BTCUSDC", "timeframe": "1m", "direction": "long"})
-        validation = LLMValidationResult(is_valid=False, errors=({"code": "invalid_tp_sl"},), summary={}, trace={})
+        raw = LLMRawResponse(
+            "BTCUSDC",
+            route.model_id,
+            "maffi-prompt-v1",
+            "raw",
+            None,
+            {"ticker": "BTCUSDC", "timeframe": "1m", "direction": "long"},
+        )
+        validation = LLMValidationResult(is_valid=False, errors=({"code": "invalid_range"},), summary={}, trace={})
         fallback = apply_fallback_policy(validation, raw)
+        expected_payload = load_maffi_llm_flow_fixture("fallback_expected.json")["invalid_range"]
+        self.assertEqual(fallback.fallback_payload, expected_payload)
+
         result = finalize_response(validation_result=validation, raw_response=raw, route=route, fallback_result=fallback)
         self.assertEqual(result.status, "fallback")
 

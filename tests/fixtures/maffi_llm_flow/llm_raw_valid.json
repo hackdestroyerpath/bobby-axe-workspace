@@ -1,0 +1,11 @@
+{
+  "ticker": "BTCUSDC",
+  "timeframe": "1m",
+  "direction": "long",
+  "tp": 102.0,
+  "sl": 99.0,
+  "grids": 8,
+  "price_up": 101.5,
+  "price_down": 100.2,
+  "conclusion": "ok"
+}

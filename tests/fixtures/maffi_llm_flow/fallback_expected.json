@@ -1,0 +1,24 @@
+{
+  "ticker_mismatch": {
+    "ticker": "BTCUSDC",
+    "timeframe": "1m",
+    "direction": "long",
+    "tp": null,
+    "sl": null,
+    "grids": null,
+    "price_up": null,
+    "price_down": null,
+    "conclusion": "fallback:ticker_mismatch"
+  },
+  "invalid_range": {
+    "ticker": "BTCUSDC",
+    "timeframe": "1m",
+    "direction": "long",
+    "tp": null,
+    "sl": null,
+    "grids": null,
+    "price_up": null,
+    "price_down": null,
+    "conclusion": "fallback:invalid_range"
+  }
+}
