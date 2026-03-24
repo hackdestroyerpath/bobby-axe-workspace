@@ -22,21 +22,23 @@
 
 - `Maffi/runtime/acceptance_suite.py`
 
-Покрываемые сценарии:
+Primary-контур Phase 1 (runtime path):
 
-- `healthy_long` → ожидается `long`
-- `healthy_short` → ожидается `short`
-- `weak_confidence` → ожидается `reject`
-- `chaotic_market` → ожидается `reject`
-- `invalid_payload` → ожидается `reject` + invalid
+- `llm_happy_path` → `prompt -> route -> llm -> validator -> finalize -> final response(status=ok)`
+- `llm_fallback_path` → `prompt -> route -> llm -> validator -> fallback -> finalize -> final response(status=fallback)`
+- `llm_reject_path` → `prompt -> route -> llm -> validator -> fallback/retry -> finalize -> final response(status=reject)`
 
-Также в каждом сценарии проверяется детерминизм (`deterministic_replay`) для одинакового timestamp override.
+В каждом LLM-сценарии acceptance явно валидирует поля `FinalNormalizedResponse`:
+`status`, `ticker`, `timeframe`, `direction`, `model_id`, `prompt_version`, `validator_summary`, `trace`.
+
+Legacy compatibility smoke (`decide` + `deterministic_replay`) остаётся опциональным и запускается отдельным флагом.
 
 ## Команды оператора
 
 ```bash
 python -m Maffi.runtime.acceptance_suite
 python -m Maffi.runtime.acceptance_suite --json
+python -m Maffi.runtime.acceptance_suite --with-legacy
 ```
 
 ## Правило go/no-go
@@ -44,10 +46,11 @@ python -m Maffi.runtime.acceptance_suite --json
 `GO` только если одновременно:
 
 - acceptance suite вернул `ACCEPTANCE_SUITE_OK`
-- нет сценариев с `passed=false`
-- нет расхождения replay (`replay_equal=false`)
+- в секции `llm_flow` нет сценариев с `passed=false`
 
 `NO-GO`, если хотя бы один критерий нарушен.
+
+Примечание: `legacy_compat` — не primary-критерий Phase 1; используется как дополнительный smoke-check при необходимости.
 
 ## Формат короткого отчёта Bobby -> MAXIMUS
 
