@@ -1,0 +1,157 @@
+# MAFFI — PHASE 1 EXECUTION TODO (Analysis-based)
+
+Дата: 2026-03-24  
+Статус: planning-ready
+
+## Objective
+Довести core runtime до deterministic, contract-first, traceable решения по одному тикеру.
+
+---
+
+## P0-1. Canonical Runtime Contract v1
+**Depends on:** —  
+**Owner:** TBD  
+**Artifacts:** `Maffi/CONTRACT_V1.md`, `Maffi/contract_v1.json` (optional)
+
+### Scope
+- Унифицировать TODO / CONTRACT_V0_1 / runtime models
+- Разделить поля: required / optional / derived / trace-only
+- Зафиксировать schema для `validation_summary`, `decision_summary`, `decision_trace`
+
+### DoD
+- Есть единый контракт v1 в репозитории
+- Все runtime модели соответствуют v1
+- Примеры payload: ok/degraded/reject валидируются по v1
+
+---
+
+## P0-2. Production Validator
+**Depends on:** P0-1  
+**Owner:** TBD  
+**Artifacts:** validator module update + validation fixtures
+
+### Scope
+- Проверки диапазонов/enum/cross-field consistency
+- `support_level < resistance_level`
+- `entry_candidates` non-empty
+- `confidence_hint: 0..1`
+- scores: `0..100`
+- `atr > 0`, `last_price > 0`
+- Severity model: `error|warning|degrade`
+- Machine-readable trace + summary block
+
+### DoD
+- Все проверки покрыты unit tests
+- Trace и summary стабильно формируются
+- Негативные кейсы дают ожидаемую severity
+
+---
+
+## P0-3. Preprocessing & Feature Extraction Hardening
+**Depends on:** P0-2  
+**Owner:** TBD  
+**Artifacts:** preprocessing module update + fixtures
+
+### Scope
+- Стабильное извлечение: OHLCV 1m/5m/15m, vol, range, imbalance, trend, S/R, regimes, entry candidates
+- Обработка sparse/noisy/gaps
+- Degradation trace
+
+### DoD
+- Фичи формируются на healthy и degraded входах
+- При gaps/sparse данные не падают, а degrade-ятся предсказуемо
+- Тесты на устойчивость добавлены
+
+---
+
+## P0-4. Decision Engine (Grid-centric)
+**Depends on:** P0-3  
+**Owner:** TBD  
+**Artifacts:** decision engine modules + scenario tests
+
+### Scope
+- reject gate
+- direction resolver
+- range resolver
+- grid count resolver
+- tp/sl resolver
+- confidence adjuster
+- rationale synthesizer
+
+### DoD
+- На канонических сценариях engine выдает согласованное решение
+- Reject/Long/Short выбираются обоснованно
+- `rationale` и `decision_trace` отражают шаги движка
+
+---
+
+## P1-5. Grid Candidate Scoring
+**Depends on:** P0-4  
+**Owner:** TBD  
+**Artifacts:** scoring module + scoring tests
+
+### Scope
+- Для кандидатов: lower/upper/width/count/step/efficiency/notes
+- Подскоринги: range utilization, oscillation quality, step quality, stability, boundary respect
+
+### DoD
+- Есть deterministic ranking кандидатов
+- `selected_candidate_id` и итоговый score объяснимы в trace
+- Тесты на конфликтные/пограничные варианты пройдены
+
+---
+
+## P1-6. TP/SL Policy Formalization
+**Depends on:** P0-4  
+**Owner:** TBD  
+**Artifacts:** policy doc + resolver tests
+
+### Scope
+- Формулы Long/Short TP/SL
+- ATR buffers
+- Анти-слишком-близкий TP/SL
+- Reject при плохой геометрии
+
+### DoD
+- Формулы задокументированы
+- На тест-наборах TP/SL воспроизводимы
+- Плохая геометрия корректно уходит в reject/degrade
+
+---
+
+## P1-7. Formatter & Traceability Output
+**Depends on:** P1-5, P1-6  
+**Owner:** TBD  
+**Artifacts:** formatter update + output schema tests
+
+### Scope
+- Добавить в output: grid_upper/lower/count/step/efficiency, selected_candidate_id, validation_summary, decision_summary
+
+### DoD
+- Финальный output стабилен и contract-compliant
+- Все поля присутствуют/обоснованно отсутствуют по schema
+- Snapshot tests добавлены
+
+---
+
+## P0-8. Acceptance Test Coverage
+**Depends on:** P0-2, P0-3, P0-4, P1-5, P1-6, P1-7  
+**Owner:** TBD  
+**Artifacts:** `Maffi/PHASE_1_ACCEPTANCE.md`, regression suite, payload packs
+
+### Mandatory scenarios
+- healthy long trend
+- healthy short trend
+- balanced range
+- chaotic reject
+- degraded but usable
+- bad input hard reject
+- conflicting signal set
+- weak confidence reject
+- malformed payload
+- bridge e2e
+
+### DoD
+- Все сценарии автоматизированы
+- Regression suite фиксирует deterministic behavior
+- Bridge e2e проходит без ручного вмешательства
