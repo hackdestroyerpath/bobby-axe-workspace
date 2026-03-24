@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import asdict
 from typing import Any, Callable
 
 from .enums import Decision, QualityStatus
@@ -17,11 +16,13 @@ def decide(
     generated_at = generated_at_override if generated_at_override is not None else (clock or now_utc_iso)()
 
     validation = validate_payload(payload)
+    validation_summary = _build_validation_summary(validation, payload)
     if not validation.is_valid:
         return _reject_output(
             payload,
             "validation_failed",
             [f"{issue.field}: {issue.message}" for issue in validation.errors],
+            validation_summary=validation_summary,
             generated_at=generated_at,
         )
 
@@ -30,6 +31,7 @@ def decide(
             payload,
             "input_quality_bad",
             ["Input data quality is BAD; hard reject policy applied."],
+            validation_summary=validation_summary,
             generated_at=generated_at,
         )
 
@@ -42,6 +44,7 @@ def decide(
             payload,
             "reject_score_high",
             [f"reject_score={reject_score:.2f} >= 60.00"],
+            validation_summary=validation_summary,
             generated_at=generated_at,
         )
 
@@ -58,22 +61,22 @@ def decide(
         f"short_score={short_score:.2f}",
         f"quality={payload['input_quality_status']}",
     )
-    trace = {
-        "scoring": {
-            "long_score": long_score,
-            "short_score": short_score,
-            "reject_score": reject_score,
-        },
-        "validation": {
-            "is_valid": validation.is_valid,
-            "warnings": [asdict(w) for w in validation.warnings],
-        },
-        "selection": {
-            "selected_entry": selected_entry,
-            "tp": tp,
-            "sl": sl,
-        },
-    }
+    decision_summary = _build_decision_summary(
+        decision=decision,
+        selected_entry=selected_entry,
+        tp=tp,
+        sl=sl,
+        atr=float(payload["atr"]),
+    )
+    trace = _build_decision_trace(
+        decision=decision,
+        confidence=confidence,
+        selected_entry=selected_entry,
+        tp=tp,
+        sl=sl,
+        reject_reason=None,
+        reject_score=reject_score,
+    )
     return MaffiOutput(
         schema_version=str(payload["schema_version"]),
         generated_at_utc=generated_at,
@@ -86,6 +89,8 @@ def decide(
         input_quality_status=QualityStatus(payload["input_quality_status"]),
         reject_reason=None,
         rationale=rationale,
+        validation_summary=validation_summary,
+        decision_summary=decision_summary,
         decision_trace=trace,
     )
 
@@ -109,7 +114,23 @@ def _tp_sl(entry: float, atr: float, decision: Decision, support: float, resista
     return tp, sl
 
 
-def _reject_output(payload: dict[str, Any], reason: str, rationale: list[str], *, generated_at: str) -> MaffiOutput:
+def _reject_output(
+    payload: dict[str, Any],
+    reason: str,
+    rationale: list[str],
+    *,
+    validation_summary: dict[str, Any],
+    generated_at: str,
+) -> MaffiOutput:
+    reject_score = float(payload.get("reject_score", 0.0)) if isinstance(payload.get("reject_score"), (int, float)) else 0.0
+    decision_summary = _build_decision_summary(
+        decision=Decision.REJECT,
+        selected_entry=None,
+        tp=None,
+        sl=None,
+        atr=float(payload.get("atr", 0.0)) if isinstance(payload.get("atr"), (int, float)) else 0.0,
+        reject_reason=reason,
+    )
     return MaffiOutput(
         schema_version=str(payload.get("schema_version", "maffi-v0.1")),
         generated_at_utc=generated_at,
@@ -122,5 +143,154 @@ def _reject_output(payload: dict[str, Any], reason: str, rationale: list[str], *
         input_quality_status=QualityStatus(payload.get("input_quality_status", QualityStatus.BAD.value)),
         reject_reason=reason,
         rationale=tuple(rationale),
-        decision_trace={"reject_reason": reason},
+        validation_summary=validation_summary,
+        decision_summary=decision_summary,
+        decision_trace=_build_decision_trace(
+            decision=Decision.REJECT,
+            confidence=0.0,
+            selected_entry=None,
+            tp=None,
+            sl=None,
+            reject_reason=reason,
+            reject_score=reject_score,
+        ),
     )
+
+
+def _build_validation_summary(validation: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    errors = [f"{issue.field}: {issue.message}" for issue in validation.errors]
+    warnings = [f"{issue.field}: {issue.message}" for issue in validation.warnings]
+    failed = len(errors)
+    warnings_count = len(warnings)
+    passed = 1 if validation.is_valid else 0
+    total_checks = passed + failed + warnings_count
+    quality_status = str(payload.get("input_quality_status", "bad"))
+    is_degraded = quality_status == QualityStatus.DEGRADED.value
+    top_reasons: list[dict[str, Any]] = []
+    issue_counter: dict[tuple[str, str], int] = {}
+    for issue in tuple(validation.errors) + tuple(validation.warnings):
+        code = str(issue.field)
+        severity = "error" if issue.severity == "error" else "warning"
+        issue_counter[(code, severity)] = issue_counter.get((code, severity), 0) + 1
+    for (code, severity), count in sorted(issue_counter.items(), key=lambda item: (-item[1], item[0][0], item[0][1])):
+        top_reasons.append({"code": code, "count": count, "severity": severity})
+
+    return {
+        "counts": {
+            "total_checks": total_checks,
+            "passed": passed,
+            "failed": failed,
+            "warnings": warnings_count,
+            "skipped": 0,
+        },
+        "errors": errors,
+        "warnings": warnings,
+        "degrade": {
+            "is_degraded": is_degraded,
+            "degrade_score": 1.0 if is_degraded else 0.0,
+            "sources": ["input_quality_status"] if is_degraded else [],
+            "policy": "hard_reject_bad_soft_penalty_degraded",
+        },
+        "top_reasons": top_reasons,
+    }
+
+
+def _build_decision_summary(
+    *,
+    decision: Decision,
+    selected_entry: float | None,
+    tp: float | None,
+    sl: float | None,
+    atr: float,
+    reject_reason: str | None = None,
+) -> dict[str, Any]:
+    direction = decision.value
+    selected_candidate_id = f"{direction}-{selected_entry:.2f}" if selected_entry is not None else "reject-none"
+    if decision == Decision.REJECT:
+        tp_sl_logic_digest = {
+            "mode": "none",
+            "tp_basis": "none",
+            "sl_basis": "none",
+            "rr_estimate": 0.0,
+            "constraints": ["decision_reject"],
+            "rejected_by": reject_reason or "unspecified",
+            "notes": ["No TP/SL for reject decision."],
+        }
+    else:
+        rr_estimate = 0.0
+        if selected_entry is not None and tp is not None and sl is not None:
+            reward = abs(tp - selected_entry)
+            risk = abs(selected_entry - sl)
+            rr_estimate = reward / risk if risk > 0 else 0.0
+        tp_sl_logic_digest = {
+            "mode": "mixed",
+            "tp_basis": "minmax_structure_with_atr_extension",
+            "sl_basis": "support_resistance_with_atr_buffer",
+            "rr_estimate": rr_estimate,
+            "constraints": [f"atr={atr:.6f}"],
+            "notes": ["TP/SL computed from ATR and S/R corridor."],
+        }
+    return {
+        "direction": direction,
+        "selected_candidate_id": selected_candidate_id,
+        "tp_sl_logic_digest": tp_sl_logic_digest,
+    }
+
+
+def _build_decision_trace(
+    *,
+    decision: Decision,
+    confidence: float,
+    selected_entry: float | None,
+    tp: float | None,
+    sl: float | None,
+    reject_reason: str | None,
+    reject_score: float,
+) -> dict[str, Any]:
+    rejected = decision == Decision.REJECT
+    gate_status = "fail" if reject_reason == "validation_failed" else "pass"
+    direction_status = "fail" if rejected else "pass"
+    range_status = "skip" if rejected else "pass"
+    grid_status = "skip" if rejected else "pass"
+    tp_sl_status = "fail" if rejected else "pass"
+    confidence_status = "skip" if rejected else "pass"
+
+    steps = [
+        {
+            "name": "gate",
+            "status": gate_status,
+            "reason": reject_reason or "payload passed validation and policy gates",
+            "metrics": {"reject_score": reject_score},
+        },
+        {
+            "name": "direction",
+            "status": direction_status,
+            "reason": "direction selected from score comparison" if not rejected else f"rejected by {reject_reason or 'policy'}",
+            "outputs": {"direction": decision.value},
+        },
+        {
+            "name": "range",
+            "status": range_status,
+            "reason": "entry within corridor" if not rejected else "skipped for reject path",
+            "outputs": {"selected_entry": selected_entry},
+        },
+        {
+            "name": "grid_count",
+            "status": grid_status,
+            "reason": "entry candidate resolved" if not rejected else "skipped for reject path",
+            "metrics": {"selected_candidates": 1 if selected_entry is not None else 0},
+        },
+        {
+            "name": "tp_sl",
+            "status": tp_sl_status,
+            "reason": "tp/sl computed" if not rejected else "tp/sl disabled for reject",
+            "outputs": {"tp": tp, "sl": sl},
+        },
+        {
+            "name": "confidence",
+            "status": confidence_status,
+            "reason": "confidence finalized" if not rejected else "confidence fixed to zero on reject",
+            "metrics": {"confidence": confidence},
+        },
+    ]
+    return {"steps": steps}

@@ -56,6 +56,8 @@ class MaffiOutput:
     input_quality_status: QualityStatus
     reject_reason: str | None
     rationale: tuple[str, ...]
+    validation_summary: dict[str, Any]
+    decision_summary: dict[str, Any]
     decision_trace: dict[str, Any]
 
 

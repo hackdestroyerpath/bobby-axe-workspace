@@ -1,0 +1,105 @@
+{
+  "schema_version": "maffi-v0.1",
+  "generated_at_utc": "2026-03-24T12:00:00Z",
+  "symbol": "BTCUSDC",
+  "decision": "long",
+  "confidence": 0.75,
+  "selected_entry": 87240.0,
+  "tp": 87420.0,
+  "sl": 87120.0,
+  "input_quality_status": "ok",
+  "reject_reason": null,
+  "rationale": [
+    "decision=long",
+    "long_score=72.00",
+    "short_score=41.00",
+    "quality=ok"
+  ],
+  "validation_summary": {
+    "counts": {
+      "failed": 0,
+      "passed": 1,
+      "skipped": 0,
+      "total_checks": 1,
+      "warnings": 0
+    },
+    "degrade": {
+      "degrade_score": 0.0,
+      "is_degraded": false,
+      "policy": "hard_reject_bad_soft_penalty_degraded",
+      "sources": []
+    },
+    "errors": [],
+    "top_reasons": [],
+    "warnings": []
+  },
+  "decision_summary": {
+    "direction": "long",
+    "selected_candidate_id": "long-87240.00",
+    "tp_sl_logic_digest": {
+      "constraints": [
+        "atr=120.000000"
+      ],
+      "mode": "mixed",
+      "notes": [
+        "TP/SL computed from ATR and S/R corridor."
+      ],
+      "rr_estimate": 1.5,
+      "sl_basis": "support_resistance_with_atr_buffer",
+      "tp_basis": "minmax_structure_with_atr_extension"
+    }
+  },
+  "decision_trace": {
+    "steps": [
+      {
+        "metrics": {
+          "reject_score": 12.0
+        },
+        "name": "gate",
+        "reason": "payload passed validation and policy gates",
+        "status": "pass"
+      },
+      {
+        "name": "direction",
+        "outputs": {
+          "direction": "long"
+        },
+        "reason": "direction selected from score comparison",
+        "status": "pass"
+      },
+      {
+        "name": "range",
+        "outputs": {
+          "selected_entry": 87240.0
+        },
+        "reason": "entry within corridor",
+        "status": "pass"
+      },
+      {
+        "metrics": {
+          "selected_candidates": 1
+        },
+        "name": "grid_count",
+        "reason": "entry candidate resolved",
+        "status": "pass"
+      },
+      {
+        "name": "tp_sl",
+        "outputs": {
+          "sl": 87120.0,
+          "tp": 87420.0
+        },
+        "reason": "tp/sl computed",
+        "status": "pass"
+      },
+      {
+        "metrics": {
+          "confidence": 0.75
+        },
+        "name": "confidence",
+        "reason": "confidence finalized",
+        "status": "pass"
+      }
+    ]
+  }
+}

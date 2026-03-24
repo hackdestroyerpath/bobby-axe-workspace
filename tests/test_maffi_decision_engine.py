@@ -28,6 +28,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
         self.assertIsNotNone(output.selected_entry)
         self.assertIsNotNone(output.tp)
         self.assertIsNotNone(output.sl)
+        self.assertEqual(output.decision_summary["direction"], "long")
+        self.assertEqual(output.decision_trace["steps"][4]["name"], "tp_sl")
 
     def test_good_short_scenario(self) -> None:
         payload = _base_payload(long_score=32.0, short_score=77.0, reject_score=15.0)
@@ -36,6 +38,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertEqual(output.decision, Decision.SHORT)
         self.assertIsNone(output.reject_reason)
+        self.assertEqual(output.decision_summary["direction"], "short")
+        self.assertEqual(output.decision_summary["tp_sl_logic_digest"]["mode"], "mixed")
 
     def test_bad_data_hard_reject(self) -> None:
         payload = _base_payload(input_quality_status="bad", reject_score=35.0)
@@ -44,6 +48,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertEqual(output.decision, Decision.REJECT)
         self.assertEqual(output.reject_reason, "input_quality_bad")
+        self.assertEqual(output.decision_summary["direction"], "reject")
+        self.assertEqual(output.decision_summary["tp_sl_logic_digest"]["mode"], "none")
 
     def test_chaotic_high_reject_score_rejects(self) -> None:
         payload = _base_payload(market_regime="chaotic", reject_score=65.0)
@@ -52,6 +58,8 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertEqual(output.decision, Decision.REJECT)
         self.assertEqual(output.reject_reason, "reject_score_high")
+        self.assertEqual(len(output.decision_trace["steps"]), 6)
+        self.assertEqual(output.decision_trace["steps"][4]["status"], "fail")
 
     def test_degraded_input_remains_usable_with_penalty(self) -> None:
         payload = _base_payload(input_quality_status="degraded", confidence_hint=0.8)
@@ -60,6 +68,7 @@ class MaffiDecisionEngineTests(unittest.TestCase):
 
         self.assertIn(output.decision, {Decision.LONG, Decision.SHORT})
         self.assertAlmostEqual(output.confidence, 0.6, places=6)
+        self.assertTrue(output.validation_summary["degrade"]["is_degraded"])
 
     def test_deterministic_replay_same_payload_same_output_payload_fields(self) -> None:
         payload = _base_payload()
