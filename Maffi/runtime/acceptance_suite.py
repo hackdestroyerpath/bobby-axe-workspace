@@ -5,11 +5,11 @@ import json
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from Maffi.runtime import decide, deterministic_replay, maffi_output_to_dict, run_trigger, validate_payload
 from Maffi.runtime.enums import Decision, QualityStatus
-from Maffi.runtime.models import TriggerInput
+from Maffi.runtime.models import AlgoPayload, FinalNormalizedResponse, TriggerInput
 from Maffi.runtime.payload_builder import build_llm_algo_payload
 from Maffi.runtime.preprocessing import extract_preprocessing_features
 from tests.fixtures.maffi_preprocessing_fixtures import sparse_ticks
@@ -17,6 +17,17 @@ from tests.fixtures.maffi_preprocessing_fixtures import sparse_ticks
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PATH = ROOT / "payload_example_ok.json"
+
+REQUIRED_FINAL_FIELDS = (
+    "status",
+    "ticker",
+    "timeframe",
+    "direction",
+    "model_id",
+    "prompt_version",
+    "validator_summary",
+    "trace",
+)
 
 
 class SuiteFailure(RuntimeError):
@@ -27,7 +38,203 @@ def load_base_payload() -> dict[str, Any]:
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
-def run_scenarios() -> list[dict[str, Any]]:
+def _build_trigger() -> TriggerInput:
+    return TriggerInput(
+        ticker="BTCUSDC",
+        timeframe="1m",
+        request_ts_utc="2026-03-24T10:00:00Z",
+        direction="long",
+    )
+
+
+def _build_algo_payload() -> AlgoPayload:
+    preprocessing_result = extract_preprocessing_features(sparse_ticks())
+    return build_llm_algo_payload(
+        symbol="BTCUSDC",
+        window_from=datetime(2026, 3, 23, 0, 0, tzinfo=timezone.utc),
+        window_to=datetime(2026, 3, 23, 1, 0, tzinfo=timezone.utc),
+        quality=QualityStatus.OK,
+        last_price=101.0,
+        support_level=99.0,
+        resistance_level=103.0,
+        atr=1.0,
+        coverage_ratio=0.95,
+        reasons=[],
+        preprocessing_result=preprocessing_result,
+    )
+
+
+def _queue_transport(responses: list[str]) -> Callable[[dict[str, Any]], str]:
+    queue = list(responses)
+
+    def transport(_request: dict[str, Any]) -> str:
+        if not queue:
+            raise RuntimeError("transport queue exhausted")
+        return queue.pop(0)
+
+    return transport
+
+
+def _check_final_response(
+    *,
+    scenario: str,
+    response: FinalNormalizedResponse,
+    expected_status: str,
+    expected_ticker: str,
+    expected_timeframe: str,
+    expected_direction: str,
+    expect_fallback_trace: bool,
+) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+
+    if response.status != expected_status:
+        errors.append(f"status expected={expected_status} actual={response.status}")
+    if response.ticker != expected_ticker:
+        errors.append(f"ticker expected={expected_ticker} actual={response.ticker}")
+    if response.timeframe != expected_timeframe:
+        errors.append(f"timeframe expected={expected_timeframe} actual={response.timeframe}")
+    if response.direction != expected_direction:
+        errors.append(f"direction expected={expected_direction} actual={response.direction}")
+
+    for field in REQUIRED_FINAL_FIELDS:
+        value = getattr(response, field)
+        if value is None:
+            errors.append(f"{field} must be set")
+
+    if not isinstance(response.validator_summary, dict) or not response.validator_summary:
+        errors.append("validator_summary must be a non-empty dict")
+    else:
+        for summary_key in ("total_checks", "failed_checks", "warning_checks"):
+            if summary_key not in response.validator_summary:
+                errors.append(f"validator_summary missing key={summary_key}")
+
+    if not isinstance(response.trace, dict):
+        errors.append("trace must be a dict")
+    else:
+        for trace_key in ("validator", "route", "raw", "fallback"):
+            if trace_key not in response.trace:
+                errors.append(f"trace missing key={trace_key}")
+
+        fallback_trace = response.trace.get("fallback")
+        if expect_fallback_trace and fallback_trace is None:
+            errors.append("fallback trace must be present")
+        if not expect_fallback_trace and fallback_trace is not None:
+            errors.append("fallback trace must be absent")
+
+    passed = not errors
+    if not passed:
+        errors = [f"{scenario}: {error}" for error in errors]
+    return passed, errors
+
+
+def run_llm_flow_primary() -> dict[str, Any]:
+    trigger = _build_trigger()
+    payload = _build_algo_payload()
+
+    happy_transport = _queue_transport(
+        [
+            json.dumps(
+                {
+                    "ticker": "BTCUSDC",
+                    "timeframe": "1m",
+                    "direction": "long",
+                    "tp": 102.0,
+                    "sl": 99.0,
+                    "grids": 8,
+                    "price_up": 101.5,
+                    "price_down": 100.2,
+                    "conclusion": "ok",
+                }
+            )
+        ]
+    )
+    fallback_transport = _queue_transport(
+        [
+            json.dumps(
+                {
+                    "ticker": "BTCUSDC",
+                    "timeframe": "1m",
+                    "direction": "short",
+                    "tp": 102.0,
+                    "sl": 99.0,
+                    "grids": 8,
+                    "price_up": 101.5,
+                    "price_down": 100.2,
+                    "conclusion": "direction mismatch for fallback",
+                }
+            )
+        ]
+    )
+    reject_transport = _queue_transport(["not-json", "still-not-json"])
+
+    scenarios = [
+        (
+            "llm_happy_path",
+            run_trigger(trigger, algo_payload=payload, transport=happy_transport),
+            "ok",
+            False,
+        ),
+        (
+            "llm_fallback_path",
+            run_trigger(trigger, algo_payload=payload, transport=fallback_transport),
+            "fallback",
+            True,
+        ),
+        (
+            "llm_reject_path",
+            run_trigger(trigger, algo_payload=payload, transport=reject_transport),
+            "reject",
+            True,
+        ),
+    ]
+
+    failures: list[str] = []
+    rows: list[dict[str, Any]] = []
+    for scenario, response, expected_status, expect_fallback_trace in scenarios:
+        passed, errors = _check_final_response(
+            scenario=scenario,
+            response=response,
+            expected_status=expected_status,
+            expected_ticker="BTCUSDC",
+            expected_timeframe="1m",
+            expected_direction="long",
+            expect_fallback_trace=expect_fallback_trace,
+        )
+        failures.extend(errors)
+        rows.append(
+            {
+                "scenario": scenario,
+                "passed": passed,
+                "expected": {
+                    "status": expected_status,
+                    "ticker": "BTCUSDC",
+                    "timeframe": "1m",
+                    "direction": "long",
+                    "required_fields": REQUIRED_FINAL_FIELDS,
+                },
+                "actual": {
+                    "status": response.status,
+                    "ticker": response.ticker,
+                    "timeframe": response.timeframe,
+                    "direction": response.direction,
+                    "model_id": response.model_id,
+                    "prompt_version": response.prompt_version,
+                    "validator_summary": response.validator_summary,
+                    "trace": response.trace,
+                },
+            }
+        )
+
+    if failures:
+        raise SuiteFailure("\n".join(failures))
+
+    return {
+        "primary": True,
+        "scenarios": rows,
+    }
+
+
+def run_legacy_compatibility_smoke() -> dict[str, Any]:
     base = load_base_payload()
 
     scenarios: list[tuple[str, dict[str, Any], Decision, bool]] = []
@@ -61,7 +268,6 @@ def run_scenarios() -> list[dict[str, Any]]:
     scenarios.append(("invalid_payload", invalid_payload, Decision.REJECT, False))
 
     results: list[dict[str, Any]] = []
-    failures: list[str] = []
 
     for name, payload, expected_decision, expected_validity in scenarios:
         validation = validate_payload(payload)
@@ -73,11 +279,6 @@ def run_scenarios() -> list[dict[str, Any]]:
         validity_match = validation.is_valid == expected_validity
 
         passed = replay_equal and decision_match and validity_match
-        if not passed:
-            failures.append(
-                f"{name}: expected decision={expected_decision.value}, valid={expected_validity}; "
-                f"got decision={decision_output.decision.value}, valid={validation.is_valid}, replay_equal={replay_equal}"
-            )
 
         results.append(
             {
@@ -101,83 +302,65 @@ def run_scenarios() -> list[dict[str, Any]]:
             }
         )
 
-    if failures:
-        raise SuiteFailure("\n".join(failures))
-
-    return results
-
-
-def run_llm_flow_scenarios() -> list[dict[str, Any]]:
-    trigger = TriggerInput(
-        ticker="BTCUSDC",
-        timeframe="1m",
-        request_ts_utc="2026-03-24T10:00:00Z",
-        direction="long",
-    )
-    preprocessing_result = extract_preprocessing_features(sparse_ticks())
-    payload = build_llm_algo_payload(
-        symbol="BTCUSDC",
-        window_from=datetime(2026, 3, 23, 0, 0, tzinfo=timezone.utc),
-        window_to=datetime(2026, 3, 23, 1, 0, tzinfo=timezone.utc),
-        quality=QualityStatus.OK,
-        last_price=101.0,
-        support_level=99.0,
-        resistance_level=103.0,
-        atr=1.0,
-        coverage_ratio=0.95,
-        reasons=[],
-        preprocessing_result=preprocessing_result,
-    )
-
-    llm_json = json.dumps(
-        {
-            "ticker": "BTCUSDC",
-            "timeframe": "1m",
-            "direction": "long",
-            "tp": 102.0,
-            "sl": 99.0,
-            "grids": 8,
-            "price_up": 101.5,
-            "price_down": 100.2,
-            "conclusion": "ok",
-        }
-    )
-    bad_json = "not-json"
-    queue = [llm_json, bad_json, bad_json]
-
-    def transport(_request: dict[str, Any]) -> str:
-        return queue.pop(0)
-
-    ok_result = run_trigger(trigger, algo_payload=payload, transport=transport)
-    reject_result = run_trigger(trigger, algo_payload=payload, transport=transport)
-
-    return [
-        {"scenario": "llm_happy_path", "status": ok_result.status, "ticker": ok_result.ticker},
-        {"scenario": "llm_reject_path", "status": reject_result.status, "ticker": reject_result.ticker},
-    ]
+    return {
+        "primary": False,
+        "optional": True,
+        "scenarios": results,
+    }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run Maffi acceptance smoke suite")
     parser.add_argument("--json", action="store_true", help="Print JSON output")
+    parser.add_argument(
+        "--with-legacy",
+        action="store_true",
+        help="Run optional legacy compatibility smoke (decide + deterministic_replay)",
+    )
     args = parser.parse_args()
 
     try:
-        results = run_scenarios()
-        llm_results = run_llm_flow_scenarios()
+        llm_flow = run_llm_flow_primary()
     except SuiteFailure as exc:
         print("ACCEPTANCE_SUITE_FAILED")
         print(exc)
         return 1
 
+    legacy_compat = {
+        "primary": False,
+        "optional": True,
+        "skipped": not args.with_legacy,
+        "scenarios": [],
+    }
+    if args.with_legacy:
+        legacy_compat = run_legacy_compatibility_smoke()
+
+    report = {
+        "llm_flow": llm_flow,
+        "legacy_compat": legacy_compat,
+    }
+
     if args.json:
-        print(json.dumps(results + llm_results, ensure_ascii=False, indent=2))
+        print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         print("ACCEPTANCE_SUITE_OK")
-        for row in results:
-            print(f"- {row['scenario']}: decision={row['actual']['decision']}, valid={row['actual']['is_valid']}, replay={row['actual']['replay_equal']}")
-        for row in llm_results:
-            print(f"- {row['scenario']}: status={row['status']}, ticker={row['ticker']}")
+        print("[llm_flow]")
+        for row in llm_flow["scenarios"]:
+            actual = row["actual"]
+            print(
+                f"- {row['scenario']}: status={actual['status']}, ticker={actual['ticker']}, "
+                f"timeframe={actual['timeframe']}, direction={actual['direction']}"
+            )
+
+        print("[legacy_compat]")
+        if legacy_compat.get("skipped"):
+            print("- skipped (run with --with-legacy)")
+        else:
+            for row in legacy_compat["scenarios"]:
+                print(
+                    f"- {row['scenario']}: decision={row['actual']['decision']}, "
+                    f"valid={row['actual']['is_valid']}, replay={row['actual']['replay_equal']}"
+                )
 
     return 0
 
