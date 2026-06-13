@@ -10,7 +10,22 @@ The first chunk ends before this stable paragraph.
 
 ## Anchor before slot 02
 The second chunk starts after this stable paragraph.
-[[SLOT_02]]
+### Chunk 02
+Chunk 02 line 01: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 02: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 03: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 04: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 05: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 06: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 07: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 08: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 09: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 10: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 11: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 12: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 13: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 14: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 02 line 15: server-side merge assembly audit keeps this text deliberately boring and deterministic.
 The second chunk ends before this stable paragraph.
 
 ## Anchor before slot 03
