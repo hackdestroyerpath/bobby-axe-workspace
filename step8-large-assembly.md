@@ -5,7 +5,22 @@ The anchors below are real final text. The placeholder lines must disappear afte
 
 ## Anchor before slot 01
 The first chunk starts after this stable paragraph.
-[[SLOT_01]]
+### Chunk 01
+Chunk 01 line 01: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 02: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 03: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 04: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 05: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 06: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 07: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 08: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 09: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 10: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 11: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 12: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 13: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 14: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+Chunk 01 line 15: server-side merge assembly audit keeps this text deliberately boring and deterministic.
 The first chunk ends before this stable paragraph.
 
 ## Anchor before slot 02
