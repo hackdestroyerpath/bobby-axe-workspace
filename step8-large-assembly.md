@@ -45,22 +45,8 @@ The second chunk ends before this stable paragraph.
 
 ## Anchor before slot 03
 The third chunk starts after this stable paragraph.
-### Chunk 03
-Chunk 03 line 01: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 02: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 03: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 04: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 05: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 06: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 07: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 08: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 09: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 10: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 11: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 12: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 13: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 14: server-side merge assembly audit keeps this text deliberately boring and deterministic.
-Chunk 03 line 15: server-side merge assembly audit keeps this text deliberately boring and deterministic.
+### Rebased Chunk 03 R4
+This branch edits current slot 03 from the current assembly base.
 The third chunk ends before this stable paragraph.
 
 ## Anchor before slot 04
