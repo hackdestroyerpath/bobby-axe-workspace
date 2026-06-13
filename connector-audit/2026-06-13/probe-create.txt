@@ -1,4 +1,0 @@
-probe update_file ok
-run_date: 2026-06-13
-purpose: GitHub connector audit
-sha_handling: fetched current blob sha before update
