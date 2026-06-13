@@ -15,7 +15,8 @@ The second chunk ends before this stable paragraph.
 
 ## Anchor before slot 03
 The third chunk starts after this stable paragraph.
-[[SLOT_03]]
+### Conflicting Chunk 03 R4
+This branch intentionally edits the same slot after the assembly branch already merged another slot 03 replacement.
 The third chunk ends before this stable paragraph.
 
 ## Anchor before slot 04
